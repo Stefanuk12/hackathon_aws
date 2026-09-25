@@ -1,5 +1,6 @@
 // Mirrors contracts/api.md and contracts/fixtures/*.json.
-export type RoomState = "lobby" | "drawing" | "judging" | "results";
+/** "theme" = the AWS theme intro shown before a themed round's drawing/typing starts. */
+export type RoomState = "lobby" | "theme" | "drawing" | "judging" | "results";
 
 /** What a single round is. */
 export type GameMode = "draw" | "survive" | "wit";
@@ -41,12 +42,25 @@ export interface RoundOutcome {
   revived: string[];
 }
 
+/** An AWS service theme, as sent in room.theme (backend/src/shared/themes.json minus prompt fields). */
+export interface ThemeInfo {
+  id: string;
+  service: string;
+  emoji: string;
+  tagline: string;
+  what: string;
+  facts: string[];
+  inAmacide: string;
+}
+
 export interface GameSettings {
   totalRounds?: number;
   mode?: ModeSetting;
   elimination?: boolean;
   /** Good rounds in a row a dead player needs to revive. */
   reviveAfter?: number;
+  /** Themed rounds: 0 = off, 1 = every round, 2 = every 2nd round. */
+  themeEvery?: number;
 }
 
 /** Draw rounds send the uploaded image key; text rounds send the answer. */
@@ -63,6 +77,11 @@ export interface Room {
   mode: ModeSetting;
   elimination: boolean;
   reviveAfter: number;
+  themeEvery: number;
+  /** The current round's AWS theme, if it's a themed round. */
+  theme?: ThemeInfo;
+  /** When the theme intro ends and the round begins (ms). */
+  themeEndsAt?: number;
   /** The current round's mode; set once a round has started. */
   roundMode?: GameMode;
   prompt?: string;

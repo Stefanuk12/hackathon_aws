@@ -1,7 +1,18 @@
 import QRCode from "qrcode";
 import { aiHtml, aiLoop, LOBBY_LINES } from "../ai";
 import { api, MOCK } from "../api";
-import { DEFAULT_MODE, DEFAULT_ROUNDS, ELIMINATION, joinUrl, MAX_ROUNDS, MODE_SETTINGS, settingInfo, TAGLINE } from "../config";
+import {
+  DEFAULT_MODE,
+  DEFAULT_ROUNDS,
+  DEFAULT_THEME_EVERY,
+  ELIMINATION,
+  joinUrl,
+  MAX_ROUNDS,
+  MODE_SETTINGS,
+  settingInfo,
+  TAGLINE,
+  THEME_OPTIONS,
+} from "../config";
 import { mockAddBot } from "../mock";
 import type { ScreenFactory } from "../router";
 import { throneScene } from "../scenes";
@@ -13,6 +24,7 @@ const ROUNDS_KEY = "host:rounds";
 const MODE_KEY = "host:mode";
 const ELIM_KEY = "host:elimination";
 const REVIVE_KEY = "host:reviveAfter";
+const THEME_KEY = "host:themeEvery";
 
 export const lobbyScreen =
   (code: string): ScreenFactory =>
@@ -49,6 +61,12 @@ export const lobbyScreen =
           </div>
         </div>
         <p class="mode-blurb" aria-live="polite"></p>
+        <div class="settings-row">
+          <span class="lbl">☁️ AWS themes</span>
+          <div class="theme-picker mode-picker" role="radiogroup" aria-label="Themed rounds">
+            ${THEME_OPTIONS.map((o) => `<button type="button" class="mode-btn" role="radio" data-theme-every="${o.every}">${esc(o.label)}</button>`).join("")}
+          </div>
+        </div>
         <div class="settings-row">
           <span class="lbl">Rounds</span>
           ${stepperHtml("rounds", "Number of rounds")}
@@ -98,6 +116,24 @@ export const lobbyScreen =
       if (btn) setMode(btn.dataset.mode as ModeSetting);
     });
 
+    // ---- AWS themes ----
+    const savedTheme = sessionStorage.getItem(THEME_KEY);
+    let themeEvery = savedTheme === null ? room.themeEvery ?? DEFAULT_THEME_EVERY : Number(savedTheme);
+    const setThemeEvery = (n: number) => {
+      themeEvery = n;
+      el.querySelectorAll<HTMLElement>("[data-theme-every]").forEach((b) => {
+        const on = Number(b.dataset.themeEvery) === n;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-checked", String(on));
+      });
+      sessionStorage.setItem(THEME_KEY, String(n));
+    };
+    setThemeEvery(themeEvery);
+    $(el, ".theme-picker").addEventListener("click", (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-theme-every]");
+      if (btn) setThemeEvery(Number(btn.dataset.themeEvery));
+    });
+
     // ---- Rounds ----
     const rounds = bindStepper(el, "rounds", 1, MAX_ROUNDS,
       Number(sessionStorage.getItem(ROUNDS_KEY)) || room.totalRounds || DEFAULT_ROUNDS,
@@ -128,7 +164,7 @@ export const lobbyScreen =
     start.addEventListener("click", async () => {
       start.disabled = true;
       try {
-        await api.startRound(code, { totalRounds: rounds(), mode, elimination, reviveAfter: reviveAfter() });
+        await api.startRound(code, { totalRounds: rounds(), mode, elimination, reviveAfter: reviveAfter(), themeEvery });
       } catch (err) {
         toast(err instanceof Error ? err.message : "Couldn't start the round");
         start.disabled = false;

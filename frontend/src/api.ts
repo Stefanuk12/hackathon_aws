@@ -13,6 +13,8 @@ export interface Api {
   submit(code: string, playerId: string, submission: Submission): Promise<{ ok: boolean }>;
   endRound(code: string): Promise<{ ok: boolean }>;
   resetRoom(code: string): Promise<{ ok: boolean }>;
+  /** Theme intro -> round: host pressed Skip or the intro timer ran out. */
+  beginRound(code: string): Promise<{ ok: boolean }>;
 }
 
 export const MOCK = import.meta.env.VITE_MOCK === "true";
@@ -44,6 +46,7 @@ const http: Api = {
   submit: (code, playerId, submission) => call("POST", `/rooms/${code}/submit`, { playerId, ...submission }),
   endRound: (code) => call("POST", `/rooms/${code}/end`),
   resetRoom: (code) => call("POST", `/rooms/${code}/reset`),
+  beginRound: (code) => call("POST", `/rooms/${code}/begin`),
 };
 
 export const api: Api = MOCK ? mock : http;

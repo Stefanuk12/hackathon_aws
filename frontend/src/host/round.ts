@@ -21,6 +21,7 @@ export const roundScreen =
         ${logoHtml("logo-sm")}
         <div class="row">
           ${room.elimination ? `<span class="pill elim-pill">💀 Elimination · ${room.players.filter((p) => p.alive !== false).length} alive</span>` : ""}
+          ${room.theme ? `<span class="pill theme-pill">${esc(room.theme.emoji)} ${esc(room.theme.service)}</span>` : ""}
           <span class="pill mode-pill">${mode.emoji} ${esc(mode.name)}</span>
           <span class="pill">Round ${room.round} of ${room.totalRounds}</span>
         </div>

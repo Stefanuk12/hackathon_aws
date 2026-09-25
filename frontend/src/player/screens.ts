@@ -61,6 +61,7 @@ function promptHeader(room: Room) {
       <header class="draw-head">
         <div class="prompt-card">
           <span class="prompt-label">${mode.emoji} Round ${room.round}/${room.totalRounds} · ${esc(mode.instruction)}</span>
+          ${room.theme ? `<span class="theme-chip">${esc(room.theme.emoji)} ${esc(room.theme.service)} theme</span>` : ""}
           <strong>${esc(room.prompt ?? "")}</strong>
         </div>
         <div class="timer" aria-label="Seconds left"></div>
@@ -162,6 +163,26 @@ const drawingScreen =
     const stop = countdown($(el, ".timer"), room.endsAt ?? Date.now() + 60_000, send);
     return { unmount: stop };
   };
+
+/** Themed round intro on the phone: short version of what's on the big screen. */
+export const themeScreen = (): ScreenFactory => (el, room) => {
+  const theme = room.theme!;
+  const mode = MODES[room.roundMode ?? "draw"];
+  el.innerHTML = `
+    <main class="screen center">
+      <section class="card stack center-text theme-phone">
+        <span class="prompt-label">Themed round · starts in <span class="timer timer-inline"></span></span>
+        <div class="big-emoji" aria-hidden="true">${esc(theme.emoji)}</div>
+        <h2>${esc(theme.service)}</h2>
+        <p>${esc(theme.tagline)}</p>
+        <p class="theme-used"><span class="prompt-label">In Amacide</span>${esc(theme.inAmacide)}</p>
+        <p class="muted-ink">Get ready to ${room.roundMode === "draw" ? "draw" : "type"}! Next: ${mode.emoji} ${esc(mode.name)}</p>
+      </section>
+      <p class="tagline" style="text-align:center">👀 More on the big screen</p>
+    </main>`;
+  const stop = countdown($(el, ".timer"), room.themeEndsAt ?? Date.now() + 20_000);
+  return { unmount: stop };
+};
 
 export const sentScreen =
   (ctx: PlayerCtx): ScreenFactory =>

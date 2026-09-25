@@ -6,6 +6,7 @@
   "mode": "mixed",
   "elimination": false,
   "reviveAfter": 2,
+  "themeEvery": 2,
   "roundMode": "draw",
   "prompt": "A penguin running a lemonade stand",
   "endsAt": 1790000000000,

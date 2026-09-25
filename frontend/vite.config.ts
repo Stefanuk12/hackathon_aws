@@ -2,7 +2,9 @@ import { resolve } from "node:path";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  server: { host: true }, // listen on the LAN so phones on the same wifi can join
+  // host: listen on the LAN so phones on the same wifi can join.
+  // fs.allow: the mock imports backend/src/shared/themes.json so both use one theme catalogue.
+  server: { host: true, fs: { allow: [".."] } },
   build: {
     rollupOptions: {
       input: {

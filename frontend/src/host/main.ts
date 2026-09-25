@@ -4,6 +4,7 @@ import { subscribe } from "../realtime";
 import { createRouter, type ScreenFactory } from "../router";
 import { toast } from "../ui";
 import { roundScreen } from "./round";
+import { themeScreen } from "./theme";
 import { judgingScreen } from "./judging";
 import { lobbyScreen } from "./lobby";
 import { revealScreen } from "./reveal";
@@ -33,6 +34,8 @@ async function main() {
     switch (room.state) {
       case "lobby":
         return ["lobby", lobbyScreen(code)];
+      case "theme":
+        return [`theme:${room.round}`, themeScreen(code)];
       case "drawing":
         return [`round:${room.round}`, roundScreen(code)];
       case "judging":

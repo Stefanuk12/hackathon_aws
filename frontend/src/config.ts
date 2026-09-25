@@ -21,6 +21,14 @@ export const ELIMINATION = {
   ghostMultiplier: 0.5,
 };
 
+/** Themed rounds: an AWS service intro before the round, and a prompt that fits the theme. */
+export const THEME_OPTIONS = [
+  { every: 0, label: "Off" },
+  { every: 2, label: "Every 2nd round" },
+  { every: 1, label: "Every round" },
+];
+export const DEFAULT_THEME_EVERY = 2;
+
 /** Max characters for Survive / Quick Wit answers (the backend enforces the same limit). */
 export const TEXT_LIMIT = 200;
 

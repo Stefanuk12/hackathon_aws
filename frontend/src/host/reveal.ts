@@ -46,7 +46,7 @@ export const revealScreen =
         <div class="reveal-grid">
           ${entryHtml(r, `${avatarHtml(r.playerId, "sm")} ${esc(r.name)}${r.ghost ? ` <span class="ghost-tag">👻 ghost · half points</span>` : ""}`)}
           <div class="stack">
-            <div class="card prompt-recap"><span class="prompt-label">${esc(mode.instruction)}</span>${esc(room.prompt ?? "")}</div>
+            <div class="card prompt-recap"><span class="prompt-label">${room.theme ? `${esc(room.theme.emoji)} ${esc(room.theme.service)} · ` : ""}${esc(mode.instruction)}</span>${esc(room.prompt ?? "")}</div>
             <div class="rank-row">
               <div class="rank-label">${winner ? "🏆 WINNER" : `#${r.rank}`}</div>
               <div data-stamp></div>

@@ -11,6 +11,7 @@ import {
   type PlayerCtx,
   resultsScreen,
   roundScreen,
+  themeScreen,
   sentScreen,
 } from "./screens";
 
@@ -42,6 +43,8 @@ function play(code: string, playerId: string) {
       case "lobby":
         ctx.submitted.clear(); // "Play again" restarts round numbers at 1
         return ["lobby", lobbyScreen(ctx)];
+      case "theme":
+        return [`theme:${room.round}`, themeScreen()];
       case "drawing":
         return player.submitted || ctx.submitted.has(room.round)
           ? [`sent:${room.round}`, sentScreen(ctx)]

@@ -9,14 +9,16 @@
  * never write on reads, so they can't overwrite newer state from another tab.
  */
 import type { Api } from "./api";
-import { DEFAULT_MODE, DEFAULT_ROUNDS, ELIMINATION, MAX_ROUNDS, TEXT_LIMIT } from "./config";
+import THEMES from "../../backend/src/shared/themes.json";
+import { DEFAULT_MODE, DEFAULT_ROUNDS, DEFAULT_THEME_EVERY, ELIMINATION, MAX_ROUNDS, TEXT_LIMIT } from "./config";
 import { applyElimination } from "./elimination";
-import type { GameMode, ModeSetting, Result, Room, RoundOutcome, RoomState } from "./types";
+import type { GameMode, ModeSetting, Result, Room, RoomState, RoundOutcome, ThemeInfo } from "./types";
 import { pick, sleep } from "./ui";
 
 const ROUND_MS = Number(new URLSearchParams(location.search).get("seconds") ?? 60) * 1000;
 const JUDGE_MS = 4000;
 const GRACE_MS = 5000;
+const THEME_INTRO_MS = 20_000;
 const IS_HOST = location.pathname.includes("host");
 
 /** Mixed mode cycles through these (same rule the backend follows). */
@@ -138,6 +140,10 @@ interface MockRoom {
   elimination: boolean;
   reviveAfter: number;
   outcome?: RoundOutcome;
+  themeEvery: number;
+  themeId?: string;
+  themeEndsAt?: number;
+  usedThemes: string[];
   roundMode?: GameMode;
   prompt?: string;
   endsAt?: number;
@@ -147,6 +153,12 @@ interface MockRoom {
   results?: Omit<Result, "name" | "imageUrl" | "text">[];
   usedPrompts: string[];
 }
+
+type Theme = (typeof THEMES)[number];
+const themeById = (id?: string) => THEMES.find((t) => t.id === id);
+/** Same rule as backend/src/shared/themes.py is_themed(). */
+const isThemed = (round: number, every: number) => every > 0 && (round - 1) % every === 0;
+const publicTheme = ({ promptHint: _h, examples: _e, ...info }: Theme): ThemeInfo => info;
 
 const roomKey = (code: string) => `mock:room:${code}`;
 const imageKey = (key: string) => `mock:img:${key}`;
@@ -175,6 +187,7 @@ function botEntry(room: MockRoom, playerId: string): Entry {
 /** The "server-side" state transitions, applied lazily on every read. */
 function tick(room: MockRoom) {
   const now = Date.now();
+  if (room.state === "theme" && now > (room.themeEndsAt ?? 0)) beginDrawing(room);
   if (room.state === "drawing") {
     const entries = (room.entries[room.round] ??= {});
     for (const p of room.players) {
@@ -184,6 +197,15 @@ function tick(room: MockRoom) {
     if (allIn || now > (room.endsAt ?? 0) + GRACE_MS) startJudging(room);
   }
   if (room.state === "judging" && now > (room.judgingAt ?? 0) + JUDGE_MS) finishJudging(room);
+}
+
+/** The round proper: timer starts, bots start "drawing". */
+function beginDrawing(room: MockRoom) {
+  room.state = "drawing";
+  room.endsAt = Date.now() + ROUND_MS;
+  for (const p of room.players.filter((p) => p.bot)) {
+    p.botSubmitAt = Date.now() + 3000 + Math.random() * ROUND_MS * 0.6;
+  }
 }
 
 function startJudging(room: MockRoom) {
@@ -235,6 +257,8 @@ function view(room: MockRoom): Room {
     mode: room.mode,
     elimination: room.elimination,
     reviveAfter: room.reviveAfter,
+    themeEvery: room.themeEvery,
+    ...(room.themeId ? { theme: publicTheme(themeById(room.themeId)!), themeEndsAt: room.themeEndsAt } : {}),
     roundMode: room.roundMode,
     prompt: room.prompt,
     endsAt: room.endsAt,
@@ -311,6 +335,8 @@ export const mock: Api = {
       mode: DEFAULT_MODE,
       elimination: ELIMINATION.defaultOn,
       reviveAfter: ELIMINATION.defaultReviveAfter,
+      themeEvery: DEFAULT_THEME_EVERY,
+      usedThemes: [],
       players: [],
       entries: {},
       usedPrompts: [],
@@ -345,6 +371,7 @@ export const mock: Api = {
       if (settings?.totalRounds) room.totalRounds = Math.min(MAX_ROUNDS, Math.max(1, Math.round(settings.totalRounds)));
       if (settings?.mode) room.mode = settings.mode;
       if (settings?.elimination !== undefined) room.elimination = settings.elimination;
+      if (settings?.themeEvery !== undefined) room.themeEvery = settings.themeEvery;
       if (settings?.reviveAfter) {
         room.reviveAfter = Math.min(ELIMINATION.maxReviveAfter, Math.max(1, Math.round(settings.reviveAfter)));
       }
@@ -354,20 +381,32 @@ export const mock: Api = {
 
     room.round += 1;
     room.roundMode = room.mode === "mixed" ? MIXED_ORDER[(room.round - 1) % MIXED_ORDER.length] : room.mode;
-    const options = PROMPTS[room.roundMode];
-    const fresh = options.filter((p) => !room.usedPrompts.includes(p));
-    room.prompt = pick(fresh.length ? fresh : options);
-    room.usedPrompts.push(room.prompt);
-    room.state = "drawing";
-    room.endsAt = Date.now() + ROUND_MS;
     room.results = undefined;
     room.outcome = undefined;
+    room.themeId = undefined;
+    room.themeEndsAt = undefined;
+    if (isThemed(room.round, room.themeEvery)) {
+      // The real backend asks Bedrock for a prompt in the theme; the mock uses the catalogue's example.
+      const fresh = THEMES.filter((t) => !room.usedThemes.includes(t.id));
+      const theme = pick(fresh.length ? fresh : THEMES);
+      room.usedThemes.push(theme.id);
+      room.themeId = theme.id;
+      room.prompt = theme.examples[room.roundMode];
+      room.state = "theme";
+      room.themeEndsAt = Date.now() + THEME_INTRO_MS;
+      room.endsAt = undefined;
+    } else {
+      const options = PROMPTS[room.roundMode];
+      const fresh = options.filter((p) => !room.usedPrompts.includes(p));
+      room.prompt = pick(fresh.length ? fresh : options);
+      room.usedPrompts.push(room.prompt);
+      beginDrawing(room);
+    }
     for (const p of room.players.filter((p) => p.bot)) {
-      p.botSubmitAt = Date.now() + 3000 + Math.random() * ROUND_MS * 0.6;
       if (room.roundMode === "draw") localStorage.setItem(imageKey(drawingKey(room, p.playerId)), scribble());
     }
     save(room);
-    return { round: room.round, prompt: room.prompt, endsAt: room.endsAt };
+    return { round: room.round, prompt: room.prompt, endsAt: room.endsAt ?? room.themeEndsAt ?? Date.now() };
   },
 
   async uploadUrl(code, playerId) {
@@ -398,6 +437,14 @@ export const mock: Api = {
     return { ok: true };
   },
 
+  async beginRound(code) {
+    await latency();
+    const room = load(code);
+    if (room.state === "theme") beginDrawing(room);
+    save(room);
+    return { ok: true };
+  },
+
   async resetRoom(code) {
     await latency();
     const room = load(code);
@@ -407,6 +454,8 @@ export const mock: Api = {
       round: 0,
       entries: {},
       roundMode: undefined,
+      themeId: undefined,
+      themeEndsAt: undefined,
       prompt: undefined,
       endsAt: undefined,
       results: undefined,

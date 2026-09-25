@@ -15,6 +15,8 @@ The host picks a mode in the lobby, along with the number of rounds.
 | 💬 **Quick Wit** (Quiplash style) | "A rejected AWS service name" | type the funniest answer | funniness, 0–10 |
 | 🔀 **Mixed** (default) | Draw → Survive → Quick Wit, repeating | | |
 
+**☁️ AWS themes** (every round, every 2nd round, or off): before a themed round, the big screen shows an intro to an AWS service: what it is, two facts, and how Amacide uses it. The host can skip it. The round's prompt then fits the theme. The 10 themes are in [backend/src/shared/themes.json](backend/src/shared/themes.json).
+
 **💀 Elimination** is an optional switch that works with any mode. The lowest-scoring living player dies each round. Dead players keep answering as ghosts for half points, and revive after scoring 6+ in a number of rounds in a row (the host sets this, 1–5).
 
 ## Game loop
@@ -110,7 +112,7 @@ Region: **eu-west-2 (London)**. Everything is serverless and defined in one SAM 
 
 | PK | SK | Attributes |
 |---|---|---|
-| `ROOM#<code>` | `META` | `state` (lobby \| drawing \| judging \| results), `round`, `totalRounds`, `mode`, `roundMode`, `elimination`, `reviveAfter`, `prompt`, `endsAt`, `outcome` |
+| `ROOM#<code>` | `META` | `state` (lobby \| theme \| drawing \| judging \| results), `round`, `totalRounds`, `mode`, `roundMode`, `elimination`, `reviveAfter`, `themeEvery`, `theme`, `themeEndsAt`, `prompt`, `endsAt`, `outcome` |
 | `ROOM#<code>` | `PLAYER#<id>` | `name`, `score`, `alive`, `streak` |
 | `ROOM#<code>` | `ROUND#<n>#<playerId>` | `s3Key` (draw) or `text` (survive/wit), `rank`, `score`, `points`, `ghost`, `roast`, `survived` (survive) |
 
@@ -122,11 +124,12 @@ Region: **eu-west-2 (London)**. Everything is serverless and defined in one SAM 
 POST /rooms                        → {code}
 POST /rooms/{code}/join            {name} → {playerId}
 GET  /rooms/{code}                 → full room state (also the polling fallback)
-POST /rooms/{code}/start           {totalRounds?, mode?, elimination?, reviveAfter?} → {round, prompt, endsAt}   (409 after the last round)
+POST /rooms/{code}/start           {totalRounds?, mode?, elimination?, reviveAfter?, themeEvery?} → {round, prompt, endsAt}   (409 after the last round)
 POST /rooms/{code}/upload-url      {playerId} → {url, key}
 POST /rooms/{code}/submit          {playerId, key} (draw) or {playerId, text} (survive/wit)
 POST /rooms/{code}/end             host calls this when the timer hits 0
 POST /rooms/{code}/reset           "Play again": back to lobby, scores to 0
+POST /rooms/{code}/begin           themed round: end the AWS theme intro (timer or Skip)
 ```
 
 ## Project structure
@@ -139,9 +142,9 @@ frontend/         1 + 2    Vite + TypeScript. index.html = phone, host.html = bi
   src/api.ts               fetch wrapper; VITE_MOCK=true swaps in src/mock.ts (fake backend)
   src/realtime.ts          polling now, AppSync Events later
   src/player/     1        canvas, upload, screens
-  src/host/       2        lobby (mode + rounds), round, judging, reveal, leaderboard
+  src/host/       2        lobby (settings), theme intro, round, judging, reveal, leaderboard
 backend/          3        SAM stack (template.yaml), Python 3.12 Lambdas
-  src/shared/     3        DynamoDB keys, HTTP helpers, AppSync publish, elimination rules
+  src/shared/     3        DynamoDB keys, HTTP helpers, AppSync publish, elimination rules, AWS themes
   src/rooms/      3        API handlers + save_results (last step of judging)
   src/ai/         4        prompt_gen + judge per mode, host_voice, ai_player (stretch), prompts/*.txt
   statemachine/   4        judge_round.asl.json: Judge → HostVoice → SaveResults
