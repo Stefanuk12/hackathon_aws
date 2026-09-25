@@ -6,33 +6,31 @@ Draw rounds are judged on images (with AI reference drawings); Survive and Quick
 import json
 import os
 import random
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-import boto3
-from boto3.dynamodb.conditions import Key
-
 from ai.bedrock import bedrock, reply_text
-from ai.reference import generate_references
-from shared.db import META, room_pk, table
+from ai.reference import generate_references, image_format
+from shared import storage
+from shared.db import load_room, round_entries
 
-s3 = boto3.client("s3")
 PROMPTS = Path(__file__).parent / "prompts"
 TEMPLATE = (PROMPTS / "judge.txt").read_text()
 TEXT_TEMPLATES = {m: (PROMPTS / f"judge_{m}.txt").read_text() for m in ("survive", "wit")}
 
 
 def judge(prompt, images, references=()):
-    """images: player drawings, references: AI reference images (both JPEG bytes).
+    """images: player drawings, references: AI reference images (JPEG or PNG bytes).
 
     Returns [{drawing, rank, score, roast}] where drawing is 1-based.
     """
     content = []
     for letter, ref in zip("ABCDE", references):
         content.append({"text": f"Reference {letter} (AI example, not a player)"})
-        content.append({"image": {"format": "jpeg", "source": {"bytes": ref}}})
+        content.append({"image": {"format": image_format(ref), "source": {"bytes": ref}}})
     for i, img in enumerate(images, start=1):
         content.append({"text": f"Drawing {i}"})
-        content.append({"image": {"format": "jpeg", "source": {"bytes": img}}})
+        content.append({"image": {"format": image_format(img), "source": {"bytes": img}}})
     content.append({"text": "Judge now. JSON only."})
 
     # .replace, not .format: the template contains literal JSON braces.
@@ -80,7 +78,27 @@ def _parse(text, n, key="drawing"):
 
     for r in results:
         r["score"] = max(0, min(10, int(r["score"])))
+    # The model sometimes repeats a rank; renumber 1..n in its order so there's one winner.
+    for rank, r in enumerate(sorted(results, key=lambda r: r["rank"]), start=1):
+        r["rank"] = rank
     return results
+
+
+MAX_IMAGE_BYTES = 3_750_000  # Bedrock's per-image limit
+
+
+def _fetch(key):
+    """Drawing bytes, or None if missing, too big or not an image, so one bad upload can't sink the round."""
+    try:
+        data = storage.get(key)
+    except Exception as e:
+        print(f"Skipping {key}:", e)
+        return None
+    is_image = data[:3] == b"\xff\xd8\xff" or data[:4] == b"\x89PNG"
+    if not is_image or len(data) > MAX_IMAGE_BYTES:
+        print(f"Skipping {key}: not a JPEG/PNG or over {MAX_IMAGE_BYTES} bytes")
+        return None
+    return data
 
 
 def _references_or_none(prompt):
@@ -98,32 +116,35 @@ def handler(event, context):
     Output: {results: [{playerId, name, rank, score, roast, survived?}], references: [url, ...]}
     """
     code, round_no = event["code"], event["round"]
-    bucket = os.environ["BUCKET_NAME"]
-
-    # One query gets the room's META, PLAYER# and ROUND# rows.
-    items = table.query(KeyConditionExpression=Key("PK").eq(room_pk(code)))["Items"]
-    meta = next(i for i in items if i["SK"] == META)
-    names = {i["SK"].split("#", 1)[1]: i["name"] for i in items if i["SK"].startswith("PLAYER#")}
+    meta, players, entries = load_room(code)
+    names = {pid: p["name"] for pid, p in players.items()}
     names["ai"] = "The AI"
     mode = meta.get("roundMode", "draw")
     if mode != "draw":
-        return _handle_text_round(mode, meta, items, names, round_no)
+        return _handle_text_round(mode, meta, entries, names, round_no)
 
-    entries = [i for i in items if i["SK"].startswith(f"ROUND#{round_no}#") and i.get("s3Key")]
+    entries = [(pid, e) for pid, e in round_entries(entries, round_no).items() if e.get("s3Key")]
 
     if not entries:
         return {"results": [], "references": []}
 
     # Shuffle so whoever submitted first isn't always "Drawing 1".
     random.shuffle(entries)
-    images = [s3.get_object(Bucket=bucket, Key=e["s3Key"])["Body"].read() for e in entries]
+    # References take a few seconds; download the drawings while they generate.
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        refs_future = pool.submit(_references_or_none, meta["prompt"])
+        images = list(pool.map(lambda e: _fetch(e[1]["s3Key"]), entries))
+        references = refs_future.result()
 
-    references = _references_or_none(meta["prompt"])
-    reference_urls = _save_references(bucket, code, round_no, references)
+    kept = [(e, img) for e, img in zip(entries, images) if img]
+    if not kept:
+        return {"results": [], "references": []}
+    entries, images = map(list, zip(*kept))
+    reference_urls = _save_references(code, round_no, references)
 
     results = []
     for r in judge(meta["prompt"], images, references):
-        player_id = entries[r["drawing"] - 1]["SK"].split("#", 2)[2]  # "ROUND#1#p_abc" -> "p_abc"
+        player_id = entries[r["drawing"] - 1][0]
         results.append(
             {
                 "playerId": player_id,
@@ -136,33 +157,30 @@ def handler(event, context):
     return {"results": results, "references": reference_urls}
 
 
-def _save_references(bucket, code, round_no, references):
+def _save_references(code, round_no, references):
     """Store the references so the reveal screen can show "what the AI drew". Returns presigned GET URLs."""
     urls = []
     try:
         for i, ref in enumerate(references):
-            key = f"rooms/{code}/{round_no}/reference{i}.jpg"
-            s3.put_object(Bucket=bucket, Key=key, Body=ref, ContentType="image/jpeg")
-            urls.append(
-                s3.generate_presigned_url(
-                    "get_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=3600
-                )
-            )
+            fmt = image_format(ref)
+            key = f"rooms/{code}/{round_no}/reference{i}.{'png' if fmt == 'png' else 'jpg'}"
+            storage.put(key, ref, f"image/{fmt}")
+            urls.append(storage.presign_get(key))
     except Exception as e:
         print("Could not save reference images:", e)
     return urls
 
 
-def _handle_text_round(mode, meta, items, names, round_no):
+def _handle_text_round(mode, meta, entries, names, round_no):
     """Survive / Quick Wit: entries carry "text" instead of "s3Key", and there are no reference images."""
-    entries = [i for i in items if i["SK"].startswith(f"ROUND#{round_no}#") and "text" in i]
+    entries = [(pid, e) for pid, e in round_entries(entries, round_no).items() if "text" in e]
     if not entries:
         return {"results": [], "references": []}
 
     random.shuffle(entries)
     results = []
-    for r in judge_text(mode, meta["prompt"], [e["text"] for e in entries]):
-        player_id = entries[r["answer"] - 1]["SK"].split("#", 2)[2]
+    for r in judge_text(mode, meta["prompt"], [e[1]["text"] for e in entries]):
+        player_id = entries[r["answer"] - 1][0]
         result = {
             "playerId": player_id,
             "name": names.get(player_id, "Mystery player"),

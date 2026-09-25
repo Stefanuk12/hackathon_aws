@@ -1,8 +1,44 @@
-from shared.http import ok
+from shared.db import load_room, round_entries
+from shared.http import error, ok, room_code
 
 
 def handler(event, context):
-    # TODO person 3: query PK=ROOM#<code>, assemble contracts/fixtures/room.json shape
-    # (incl. mode, roundMode). Results: presigned GET imageUrl for draw rounds, text for
-    # survive/wit rounds, and survived for survive rounds.
-    return ok({"code": "WXYZ", "state": "lobby", "round": 0, "players": []})
+    code = room_code(event)
+    meta, players, entries = load_room(code)
+    if not meta:
+        return error(f"Room {code} not found", 404)
+
+    # A player's score is the sum of their judged entries, so there's no running total to keep in sync.
+    scores = {}
+    for e in entries:
+        pid = e["SK"].split("#", 2)[2]
+        scores[pid] = scores.get(pid, 0) + e.get("score", 0)
+
+    this_round = round_entries(entries, meta["round"])
+    room = {
+        "code": code,
+        "state": meta["state"],
+        "round": meta["round"],
+        "totalRounds": meta["totalRounds"],
+        "prompt": meta.get("prompt"),
+        "endsAt": meta.get("endsAt"),
+        "players": [
+            {"playerId": pid, "name": p["name"], "score": scores.get(pid, 0), "submitted": pid in this_round}
+            for pid, p in players.items()
+        ],
+        "audioUrl": meta.get("audioUrl"),
+    }
+    if meta["state"] == "results":
+        judged = sorted((e for e in this_round.items() if "rank" in e[1]), key=lambda e: e[1]["rank"])
+        room["results"] = [
+            {
+                "playerId": pid,
+                "name": players[pid]["name"] if pid in players else "The AI",
+                "rank": e["rank"],
+                "score": e["score"],
+                "roast": e["roast"],
+                "imageUrl": e.get("imageUrl", ""),
+            }
+            for pid, e in judged
+        ]
+    return ok(room)

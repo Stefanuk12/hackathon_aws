@@ -9,7 +9,15 @@
       "ResultSelector": { "results.$": "$.Payload.results", "references.$": "$.Payload.references" },
       "ResultPath": "$.judge",
       "Retry": [{ "ErrorEquals": ["States.ALL"], "IntervalSeconds": 2, "MaxAttempts": 2, "BackoffRate": 2 }],
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "ResultPath": "$.judgeError", "Next": "JudgeFailed" }],
       "Next": "HostVoice"
+    },
+    "JudgeFailed": {
+      "Comment": "Bedrock kept failing: finish the round with no ranking rather than leave the room stuck in judging.",
+      "Type": "Pass",
+      "Result": { "results": [], "references": [] },
+      "ResultPath": "$.judge",
+      "Next": "SaveResults"
     },
     "HostVoice": {
       "Type": "Task",
@@ -24,6 +32,7 @@
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": { "FunctionName": "${SaveResultsFunctionArn}", "Payload.$": "$" },
+      "Retry": [{ "ErrorEquals": ["States.ALL"], "IntervalSeconds": 1, "MaxAttempts": 3, "BackoffRate": 2 }],
       "End": true
     }
   }

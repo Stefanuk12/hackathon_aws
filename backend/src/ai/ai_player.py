@@ -5,14 +5,9 @@ round starts (e.g. from start_round), and add a PLAYER#ai row so it shows on
 the scoreboard. The judge already names playerId "ai" as "The AI".
 """
 
-import os
-
-import boto3
-
-from ai.reference import generate_image
+from ai.reference import generate_image, image_format
+from shared import storage
 from shared.db import entry_sk, room_pk, table
-
-s3 = boto3.client("s3")
 
 # Deliberately scrappy so it blends in with 60-second phone drawings.
 AI_STYLE = (
@@ -24,7 +19,7 @@ AI_STYLE = (
 def add_ai_entry(code, round_no, prompt):
     """Draw the prompt, upload it like a player's drawing, and record it as player "ai"."""
     image = generate_image(AI_STYLE.format(prompt=prompt))
-    key = f"rooms/{code}/{round_no}/ai.jpg"
-    s3.put_object(Bucket=os.environ["BUCKET_NAME"], Key=key, Body=image, ContentType="image/jpeg")
+    key = storage.drawing_key(code, round_no, "ai")
+    storage.put(key, image, f"image/{image_format(image)}")
     table.put_item(Item={"PK": room_pk(code), "SK": entry_sk(round_no, "ai"), "s3Key": key})
     return key
