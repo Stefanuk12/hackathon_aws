@@ -19,7 +19,7 @@ def handler(event, context):
             batch.delete_item(Key={"PK": e["PK"], "SK": e["SK"]})
     table.update_item(
         Key={"PK": room_pk(code), "SK": META},
-        UpdateExpression="SET #s = :lobby, #r = :zero REMOVE prompt, endsAt, audioUrl",
+        UpdateExpression="SET #s = :lobby, #r = :zero REMOVE prompt, endsAt, audioUrl, hostScript, referenceUrls",
         ExpressionAttributeNames={"#s": "state", "#r": "round"},
         ExpressionAttributeValues={":lobby": "lobby", ":zero": 0},
     )

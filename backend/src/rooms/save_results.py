@@ -6,11 +6,14 @@ from shared.storage import presign_get
 def handler(event, context):
     """Last step of the judge state machine. Safe to retry: it only overwrites rows.
 
-    Input: {code, round, judge: {results}, voice?: {audioUrl}}
+    Input: {code, round, judge: {results, references?}, voice?: {audioUrl, script}}
     """
     code, round_no = event["code"], event["round"]
     results = event["judge"]["results"]
-    audio_url = (event.get("voice") or {}).get("audioUrl")
+    references = event["judge"].get("references", [])
+    voice = event.get("voice") or {}
+    # Kept even when Polly worked, so the host screen can read it aloud if audio won't play.
+    audio_url, script = voice.get("audioUrl"), voice.get("script")
 
     meta, _, entries = load_room(code)
     if not meta or meta["state"] != "judging" or meta["round"] != round_no:
@@ -30,9 +33,12 @@ def handler(event, context):
 
     table.update_item(
         Key={"PK": room_pk(code), "SK": META},
-        UpdateExpression="SET #s = :results, audioUrl = :audio",
+        UpdateExpression="SET #s = :results, audioUrl = :audio, hostScript = :script, referenceUrls = :refs",
         ExpressionAttributeNames={"#s": "state"},
-        ExpressionAttributeValues={":results": "results", ":audio": audio_url},
+        ExpressionAttributeValues={":results": "results", ":audio": audio_url, ":script": script, ":refs": references},
     )
-    publish(code, "results_ready", round=round_no, results=results, audioUrl=audio_url)
+    publish(
+        code, "results_ready",
+        round=round_no, results=results, audioUrl=audio_url, hostScript=script, references=references,
+    )
     return {"ok": True}

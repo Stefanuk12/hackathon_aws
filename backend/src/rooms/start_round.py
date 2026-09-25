@@ -51,7 +51,7 @@ def handler(event, context):
             Key={"PK": room_pk(code), "SK": META},
             UpdateExpression=(
                 "SET #s = :drawing, #r = :round, totalRounds = :total, prompt = :prompt, "
-                "endsAt = :ends, usedPrompts = :used REMOVE audioUrl"
+                "endsAt = :ends, usedPrompts = :used REMOVE audioUrl, hostScript, referenceUrls"
             ),
             ConditionExpression="#r = :old AND #s = :state",
             ExpressionAttributeNames={"#s": "state", "#r": "round"},

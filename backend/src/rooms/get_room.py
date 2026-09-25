@@ -27,6 +27,8 @@ def handler(event, context):
             for pid, p in players.items()
         ],
         "audioUrl": meta.get("audioUrl"),
+        "hostScript": meta.get("hostScript"),  # read aloud with speechSynthesis if audioUrl is null
+        "references": meta.get("referenceUrls", []),  # "what the AI drew" images for the reveal
     }
     if meta["state"] == "results":
         judged = sorted((e for e in this_round.items() if "rank" in e[1]), key=lambda e: e[1]["rank"])

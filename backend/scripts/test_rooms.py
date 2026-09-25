@@ -85,7 +85,7 @@ judged = judge.handler(executions[0], None)  # Step Functions: Judge -> (HostVoi
 assert len(judged["results"]) == 2 and len(judged["references"]) == 1
 ref = storage.s3.get_object(Bucket="drawings", Key=f"rooms/{code}/1/reference0.png")
 assert ref["ContentType"] == "image/png", "Nova Canvas PNGs must not be labelled JPEG"
-step = {**executions[0], "judge": judged, "voice": {"audioUrl": "https://audio"}}
+step = {**executions[0], "judge": judged, "voice": {"audioUrl": "https://audio", "script": "The results are in!"}}
 assert save_results.handler(step, None) == {"ok": True}
 save_results.handler(step, None)  # a Step Functions retry must not double the scores
 
@@ -95,9 +95,13 @@ assert [r["score"] for r in room["results"]] == [9, 8]
 assert room["results"][0]["imageUrl"].startswith("https://drawings.s3.eu-west-2.amazonaws.com/")
 assert sorted(p["score"] for p in room["players"]) == [8, 9]
 assert isinstance(room["totalRounds"], int), "Decimals must serialise as numbers"
+assert room["hostScript"] == "The results are in!", "script is the fallback when Polly fails"
+assert room["references"] == judged["references"] and len(room["references"]) == 1
 
 # Round 2: nobody submits, host ends it. Then the game is over.
 call(start_round, code)
+_, room = call(get_room, code)
+assert room["hostScript"] is None and room["references"] == [], "last round's voice/references cleared"
 call(end_round, code)
 save_results.handler({"code": code, "round": 2, "judge": {"results": []}}, None)
 assert call(start_round, code)[0] == 409, "game over after totalRounds"
