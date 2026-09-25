@@ -7,6 +7,7 @@ from shared.http import body, error, ok, room_code
 from shared.storage import drawing_key
 
 GRACE_MS = 5000
+TEXT_LIMIT = 200
 
 
 def handler(event, context):
@@ -21,13 +22,19 @@ def handler(event, context):
     if meta["state"] != "drawing":
         return error("Too late! The round is over.", 409)
 
-    # Only accept the key upload-url handed out, so nobody can submit someone else's drawing.
     round_no = meta["round"]
-    key = drawing_key(code, round_no, player_id)
-    if req.get("key") != key:
-        return error("Wrong upload key")
+    if meta.get("roundMode", "draw") == "draw":
+        # Only accept the key upload-url handed out, so nobody can submit someone else's drawing.
+        key = drawing_key(code, round_no, player_id)
+        if req.get("key") != key:
+            return error("Wrong upload key")
+        entry = {"s3Key": key}
+    else:
+        # Survive / Quick Wit: the answer is typed, so there's nothing to upload.
+        # An empty answer still counts as submitted; the judge scores the silence.
+        entry = {"text": str(req.get("text", ""))[:TEXT_LIMIT]}
 
-    table.put_item(Item={"PK": room_pk(code), "SK": entry_sk(round_no, player_id), "s3Key": key})
+    table.put_item(Item={"PK": room_pk(code), "SK": entry_sk(round_no, player_id), **entry})
 
     # Re-read after writing: if the last two players submit at the same moment, whichever
     # reads second is guaranteed to see both entries, so judging always starts.

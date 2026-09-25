@@ -6,13 +6,26 @@ from shared.http import error, ok
 # No I or O, so codes can't be misread as 1 or 0.
 LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"
 
+# Host can change all of these in the lobby (see start_round).
+DEFAULTS = {
+    "state": "lobby",
+    "round": 0,
+    "totalRounds": 3,
+    "mode": "mixed",
+    "elimination": False,
+    "reviveAfter": 2,
+    "themeEvery": 2,
+    "usedPrompts": [],
+    "usedThemes": [],
+}
+
 
 def handler(event, context):
     for _ in range(5):
         code = "".join(secrets.choice(LETTERS) for _ in range(4))
         try:
             table.put_item(
-                Item={"PK": room_pk(code), "SK": META, "state": "lobby", "round": 0, "totalRounds": 3, "usedPrompts": []},
+                Item={"PK": room_pk(code), "SK": META, **DEFAULTS},
                 ConditionExpression="attribute_not_exists(PK)",
             )
             return ok({"code": code})

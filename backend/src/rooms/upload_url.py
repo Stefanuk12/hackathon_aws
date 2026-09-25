@@ -13,6 +13,8 @@ def handler(event, context):
         return error("Unknown player", 403)
     if meta["state"] != "drawing":
         return error("Too late! The round is over.", 409)
+    if meta.get("roundMode", "draw") != "draw":
+        return error("This round is typed, not drawn", 409)
 
     key = drawing_key(code, meta["round"], player_id)
     return ok({"url": presign_put(key, "image/jpeg"), "key": key})
