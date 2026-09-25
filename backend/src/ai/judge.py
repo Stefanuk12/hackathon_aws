@@ -53,7 +53,27 @@ def _parse(text, n):
 
     for r in results:
         r["score"] = max(0, min(10, int(r["score"])))
+    # The model sometimes repeats a rank; renumber 1..n in its order so there's one winner.
+    for rank, r in enumerate(sorted(results, key=lambda r: r["rank"]), start=1):
+        r["rank"] = rank
     return results
+
+
+MAX_IMAGE_BYTES = 3_750_000  # Bedrock's per-image limit
+
+
+def _fetch(key):
+    """Drawing bytes, or None if missing, too big or not an image, so one bad upload can't sink the round."""
+    try:
+        data = storage.get(key)
+    except Exception as e:
+        print(f"Skipping {key}:", e)
+        return None
+    is_image = data[:3] == b"\xff\xd8\xff" or data[:4] == b"\x89PNG"
+    if not is_image or len(data) > MAX_IMAGE_BYTES:
+        print(f"Skipping {key}: not a JPEG/PNG or over {MAX_IMAGE_BYTES} bytes")
+        return None
+    return data
 
 
 def _references_or_none(prompt):
@@ -84,8 +104,13 @@ def handler(event, context):
     # References take a few seconds; download the drawings while they generate.
     with ThreadPoolExecutor(max_workers=8) as pool:
         refs_future = pool.submit(_references_or_none, meta["prompt"])
-        images = list(pool.map(lambda e: storage.get(e[1]["s3Key"]), entries))
+        images = list(pool.map(lambda e: _fetch(e[1]["s3Key"]), entries))
         references = refs_future.result()
+
+    kept = [(e, img) for e, img in zip(entries, images) if img]
+    if not kept:
+        return {"results": [], "references": []}
+    entries, images = map(list, zip(*kept))
     reference_urls = _save_references(code, round_no, references)
 
     results = []
