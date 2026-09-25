@@ -4,6 +4,7 @@ import { api, MOCK } from "../api";
 import { DEFAULT_MODE, DEFAULT_ROUNDS, ELIMINATION, joinUrl, MAX_ROUNDS, MODE_SETTINGS, settingInfo, TAGLINE } from "../config";
 import { mockAddBot } from "../mock";
 import type { ScreenFactory } from "../router";
+import { throneScene } from "../scenes";
 import type { ModeSetting, Room } from "../types";
 import { $, bindStepper, chipState, esc, logoHtml, stepperHtml, syncChips, toast } from "../ui";
 
@@ -19,6 +20,7 @@ export const lobbyScreen =
     const url = joinUrl(code);
     el.innerHTML = `
     <main class="host-screen host-lobby">
+      ${throneScene()}
       <header class="host-head">
         ${logoHtml()}
         <p class="tagline">${esc(TAGLINE)}</p>

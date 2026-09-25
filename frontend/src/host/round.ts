@@ -2,6 +2,7 @@ import { aiHtml, aiSay, ROUND_INTRO_LINES } from "../ai";
 import { api } from "../api";
 import { MODES } from "../config";
 import type { ScreenFactory } from "../router";
+import { thinkerScene } from "../scenes";
 import type { Room } from "../types";
 import { $, chipState, countdown, esc, logoHtml, pick, syncChips } from "../ui";
 
@@ -15,6 +16,7 @@ export const roundScreen =
     const mode = MODES[room.roundMode ?? "draw"];
     el.innerHTML = `
     <main class="host-screen host-round">
+      ${thinkerScene()}
       <header class="row spread">
         ${logoHtml("logo-sm")}
         <div class="row">
