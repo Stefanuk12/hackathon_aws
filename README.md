@@ -157,11 +157,42 @@ pitch/            5        diagram, slides, demo script
 
 Every handler is a stub that returns a response shaped like the contract, so the stack can be deployed and the frontend pointed at it straight away. Search for `TODO person N` to find your work.
 
-## Running it on AWS (read this before the demo)
+## 🔴 Live demo
 
-**This hackathon account cannot deploy the stack.** `WSParticipantRole` has `cloudformation:*`
-denied in every region and `iam:*` explicitly denied, so there is no way to create a stack or
-the Lambda execution roles it needs. `sam build` works; `sam deploy` cannot.
+| | URL |
+|---|---|
+| **Host / big screen** | http://amacide-web-985539753760.s3-website-us-east-1.amazonaws.com/host.html |
+| **Phones** | the QR code on the host screen, or `.../?room=CODE` |
+| API | `http://54.86.27.110:8000` (EC2) |
+
+Both are public, so phones don't need to be on the venue wifi. Everything runs on AWS:
+S3 website hosting for the frontend, EC2 for the API, DynamoDB for state, S3 for drawings,
+Bedrock for every prompt and judgement.
+
+**Two things to know:**
+- The EC2 instance carries the workshop's **temporary credentials**, because the account
+  denies IAM so there is no instance role. When those expire the API starts failing; re-run
+  `python backend/scripts/deploy_ec2.py` to launch a fresh instance with current credentials.
+- It costs a few pence an hour. Stop it when you're done:
+  `aws ec2 terminate-instances --instance-ids i-0c1c3815c85decdbc --region us-east-1`
+
+To repoint the site after redeploying, rebuild with the new IP and re-upload:
+
+```sh
+cd frontend
+VITE_API_URL=http://<new-ip>:8000 \
+VITE_PUBLIC_URL=http://amacide-web-985539753760.s3-website-us-east-1.amazonaws.com \
+  npm run build
+aws s3 sync dist s3://amacide-web-985539753760 --delete
+```
+
+## How it's deployed, and why it isn't the SAM stack
+
+**This hackathon account cannot deploy the SAM stack.** `WSParticipantRole` has
+`cloudformation:*` denied in every region and `iam:*` explicitly denied, so there is no way to
+create a stack, or the Lambda execution roles it needs. `sam build` works; `sam deploy` cannot.
+EC2 *is* allowed, so the API runs there instead, provisioned by
+[backend/scripts/deploy_ec2.py](backend/scripts/deploy_ec2.py).
 
 What the account *does* allow, and what we therefore use for real:
 
@@ -170,6 +201,7 @@ What the account *does* allow, and what we therefore use for real:
 | **Amazon Bedrock** (us-west-2) | ✅ | Writing every prompt, judging drawings (vision) and answers (text) |
 | **Amazon DynamoDB** (us-east-1) | ✅ | Table `amacide` — rooms, players, entries, scores |
 | **Amazon S3** (us-east-1) | ✅ | Bucket `amacide-985539753760` — drawings via presigned URLs |
+| **Amazon EC2** (us-east-1) | ✅ | t3.micro running the API, the only compute this account can create |
 | Lambda / API Gateway / Step Functions | ❌ | Need IAM roles, which are denied |
 | AppSync Events | ❌ | Denied — the screens poll `GET /rooms/{code}` instead (documented fallback) |
 | Amazon Polly | ❌ | Denied — `host_voice` returns `hostScript` and the browser reads it aloud |
@@ -201,6 +233,63 @@ Everyone must be on the same wifi.
 If you get an account that *can* deploy, the template is ready: `sam build && sam deploy`
 brings up the full serverless architecture, and the frontend just needs `VITE_API_URL`
 repointed at the stack's `ApiUrl`.
+
+## Demo notes
+
+The pitch timings are in [pitch/demo-script.md](pitch/demo-script.md). These notes cover what to set up, what to say at each screen, and what to do when something breaks.
+
+### Before the judges arrive
+
+- [ ] Laptop and every phone on the **same wifi**. Venue wifi often isolates devices from each other. If phones can't load the page, use a phone hotspot for everyone.
+- [ ] AWS credentials are fresh (workshop sessions expire). `serve_local.py` prints the table, bucket and model it's using on startup.
+- [ ] `python scripts/serve_local.py` is running, and so is `npm run dev` with `.env.local` pointing at the laptop's LAN IP (see above).
+- [ ] Open `http://<laptop-lan-ip>:5173/host.html` on the big screen, **not** `localhost`. The QR code uses `VITE_PUBLIC_URL`, so check that it opens on a phone.
+- [ ] Play one full round yourself to warm up Bedrock and check it's answering.
+- [ ] Have the architecture diagram and backup video open in other tabs. Neither is in [pitch/](pitch/) yet. Until the diagram exists, the ASCII one above will do.
+- [ ] Sound doesn't matter. See "No voice" below.
+
+### Suggested settings
+
+- **Mode: Mixed, 3 rounds.** One of each mode: a drawing, an AWS quiz question and a Quiplash-style joke. That shows the most in the least time.
+- **AWS themes: every round.** Each round opens with a 20-second intro to an AWS service, which the judges will like. Press **Skip** if you're short of time.
+- **Elimination: off** for a 3-minute slot. It needs several rounds to get interesting. Mention it instead.
+- Rounds last 60 seconds. If everyone has submitted early, press **End round now**.
+
+### What to say at each screen
+
+| Screen | Talking point |
+|---|---|
+| **Lobby / QR** | No accounts and no app, just a room code. That's why we didn't use Cognito. |
+| **Theme intro** | An AWS service explained in two facts, and how Amacide itself uses it. The round's prompt is then about that service. |
+| **Prompt** | Bedrock (Claude) wrote this just now. It avoids repeating earlier prompts and fits the mode and theme. |
+| **Judging** | Here's the architecture. **All entries are judged in one Bedrock call**: vision for drawings, text for answers. For drawings we first generate a reference image (Stability Image Core on Bedrock), so the judge knows what the key elements of the prompt look like. It scores recognisability, not art skill, and penalises written words. |
+| **Reveal** | Entries are revealed from last place to the winner, each with a one-line roast. In Learn rounds, the AI also says what the right answer was, so everyone learns something. |
+| **Leaderboard** | Scores aren't stored. They're added up from each round's points, so a retried save can't double-count them. |
+
+### Be honest about the architecture
+
+The hackathon account can't deploy (CloudFormation and IAM are denied, see above). Say this up front rather than let the judges find out:
+
+- **Live AWS in the demo:** Bedrock (Claude for prompts and judging, Stability for reference images), DynamoDB for all game state, S3 for drawings via presigned URLs.
+- **Written, but not deployed:** the SAM stack in [backend/template.yaml](backend/template.yaml) with Lambda, API Gateway, Step Functions, AppSync Events, Polly and CloudFront. `sam build` passes. The laptop runs **the same Lambda handler code**, and a thread follows the Step Functions order (Judge → HostVoice → SaveResults).
+- **No voice.** Polly is denied, and the host screen doesn't read `hostScript` aloud yet, so the roasts are shown as the robot's typed speech. Don't promise a voice.
+- **Screens poll** `GET /rooms/{code}` every second because AppSync Events is denied. This is the documented fallback.
+
+### Questions the judges might ask
+
+- **Why serverless?** A game room gets busy for 20 minutes and then nothing happens. With Lambda, DynamoDB and S3 an idle game costs nothing, and a room full of phones scales on its own.
+- **Why judge everything in one call?** It's cheaper and faster, and the model ranks entries against each other rather than scoring each one in isolation.
+- **How do you stop offensive content?** We haven't yet. The plan is Bedrock Guardrails for the roasts and Rekognition moderation for drawings (see Stretch above).
+- **What's next?** An AI player that draws its own entry for the humans to spot ([backend/src/ai/ai_player.py](backend/src/ai/ai_player.py) is written but not wired in), and chain mode.
+
+### If something breaks
+
+| Problem | Fix |
+|---|---|
+| Phones can't open the page | Different network or client isolation. Switch everyone to a hotspot and restart Vite with the new IP in `.env.local`. |
+| Stuck on the judging screen | Check the `serve_local.py` output. If judging failed, the room goes back to the round, and **End round now** retries. |
+| Bedrock errors or expired credentials | Refresh the credentials and restart `serve_local.py`. Rooms are kept in DynamoDB, so the room carries on. |
+| Nothing works | Play the backup video, or run `npm run dev:mock` and play against bots. The mock "AI" gives random scores, so say so. |
 
 ## Getting started
 
