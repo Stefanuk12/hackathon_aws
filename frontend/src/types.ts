@@ -27,10 +27,3 @@ export interface Room {
   results?: Result[];
   audioUrl?: string | null;
 }
-
-export type GameEvent =
-  | { type: "player_joined"; playerId: string; name: string }
-  | { type: "round_started"; round: number; prompt: string; endsAt: number }
-  | { type: "submission_in"; playerId: string; submitted: number; total: number }
-  | { type: "judging"; round: number }
-  | { type: "results_ready"; round: number; results: Result[]; audioUrl: string | null };

@@ -156,6 +156,16 @@ cd backend && TEXT_MODEL_ID=<id> AWS_REGION=eu-west-2 python scripts/test_judge.
 
 `npm run dev` listens on the LAN, so phones on the same wifi can open `http://<laptop-ip>:5173`.
 
+### Frontend mock mode
+
+`npm run dev:mock` runs the **whole game with no backend**. A fake server in [src/mock.ts](frontend/src/mock.ts) keeps game state in localStorage, so tabs in the same browser play together:
+
+1. Open `http://localhost:5173/host.html` (the big screen). Add `?seconds=20` for shorter rounds.
+2. Open the join link shown under the QR code in another tab, or on a phone via your LAN IP.
+3. Click **+ Add bot** to fill the room. Bots submit random scribbles, and the mock "AI" gives random scores and canned roasts.
+
+UI copy and the game name live in [src/config.ts](frontend/src/config.ts) and [src/ai.ts](frontend/src/ai.ts).
+
 ## Team
 
 | # | Role | Owns |

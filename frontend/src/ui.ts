@@ -1,0 +1,116 @@
+import { GAME_NAME } from "./config";
+import type { Player } from "./types";
+
+export const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+export const pick = <T>(items: readonly T[]): T => items[Math.floor(Math.random() * items.length)];
+
+const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+
+/** Escape user-provided text (names, prompts, roasts) before putting it in innerHTML. */
+export const esc = (text: string) => text.replace(/[&<>"']/g, (c) => ESCAPES[c]);
+
+export function $<T extends Element = HTMLElement>(root: ParentNode, selector: string): T {
+  const found = root.querySelector<T>(selector);
+  if (!found) throw new Error(`Missing element: ${selector}`);
+  return found;
+}
+
+export function logoHtml(cls = "") {
+  const [first, ...rest] = GAME_NAME.split(" ");
+  const last = rest.pop() ?? "";
+  return `<h1 class="logo ${cls}">${esc([first, ...rest].join(" "))} <span class="logo-ai">${esc(last)}</span></h1>`;
+}
+
+/** Type text into an element. Stops early if the element leaves the page or is re-typed. */
+export async function typewrite(target: HTMLElement, text: string, charsPerSecond = 40) {
+  const token = String(Math.random());
+  target.dataset.typing = token;
+  target.classList.add("typing");
+  for (let i = 1; i <= text.length; i++) {
+    if (!target.isConnected || target.dataset.typing !== token) return;
+    target.textContent = text.slice(0, i);
+    await sleep(1000 / charsPerSecond);
+  }
+  target.classList.remove("typing");
+}
+
+/** Live countdown to `endsAt` (ms). Calls onEnd once at zero. Returns a stop function. */
+export function countdown(target: HTMLElement, endsAt: number, onEnd?: () => void) {
+  let fired = false;
+  const tick = () => {
+    const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+    target.textContent = String(left);
+    target.classList.toggle("danger", left <= 10);
+    if (left === 0 && !fired) {
+      fired = true;
+      onEnd?.();
+    }
+  };
+  tick();
+  const id = setInterval(tick, 250);
+  return () => clearInterval(id);
+}
+
+export function toast(message: string) {
+  document.querySelector(".toast")?.remove();
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.setAttribute("role", "alert");
+  el.textContent = message;
+  document.body.append(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+export function confetti(count = 50) {
+  const bits = ["🎉", "⭐", "✨", "🖍️", "🏆", "💥"];
+  for (let i = 0; i < count; i++) {
+    const el = document.createElement("span");
+    el.className = "confetti";
+    el.textContent = pick(bits);
+    el.style.left = `${Math.random() * 100}vw`;
+    el.style.animationDuration = `${2 + Math.random() * 2.5}s`;
+    el.style.animationDelay = `${Math.random() * 0.8}s`;
+    document.body.append(el);
+    setTimeout(() => el.remove(), 5500);
+  }
+}
+
+// ---------- Avatars ----------
+
+const EMOJI = ["🐸", "🦊", "🐙", "🦄", "🐼", "🐔", "🐢", "🦖", "👻", "🤡", "🐝", "🦀", "🍄", "🌵", "🐧", "🦉", "🐷", "👽"];
+const COLOURS = ["#ff4f8b", "#ffd23f", "#3ee0cf", "#9dff5c", "#b388ff", "#ff8a3d", "#5ab0ff", "#ff6b6b"];
+
+function hash(text: string) {
+  let h = 7;
+  for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  return Math.abs(h);
+}
+
+/** Avatars are derived from playerId, so they need no backend support. */
+export function avatarHtml(playerId: string, size: "sm" | "md" | "lg" = "md") {
+  const h = hash(playerId);
+  const cls = size === "md" ? "" : ` avatar-${size}`;
+  return `<span class="avatar${cls}" style="--c:${COLOURS[(h >> 3) % COLOURS.length]}" aria-hidden="true">${EMOJI[h % EMOJI.length]}</span>`;
+}
+
+/**
+ * Keep a grid of player chips in sync without re-creating existing ones
+ * (so the pop-in animation only plays for new players).
+ */
+export function syncChips(container: HTMLElement, players: Player[], stateOf?: (p: Player) => string) {
+  const ids = new Set(players.map((p) => p.playerId));
+  for (const chip of [...container.children] as HTMLElement[]) {
+    if (!ids.has(chip.dataset.id ?? "")) chip.remove();
+  }
+  for (const p of players) {
+    let chip = container.querySelector<HTMLElement>(`[data-id="${CSS.escape(p.playerId)}"]`);
+    if (!chip) {
+      chip = document.createElement("div");
+      chip.dataset.id = p.playerId;
+      chip.innerHTML = `${avatarHtml(p.playerId)}<span class="chip-name">${esc(p.name)}</span>`;
+      container.append(chip);
+    }
+    chip.className = `chip ${stateOf?.(p) ?? ""}`;
+  }
+}
