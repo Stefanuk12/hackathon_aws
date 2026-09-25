@@ -45,6 +45,7 @@ end_round.sfn.start_execution = lambda **kw: executions.append(json.loads(kw["in
 start_round.generate_prompt = lambda used: f"prompt {len(used) + 1}"
 # Fake Bedrock: a PNG reference (like Nova Canvas returns) and a judge that ranks in order.
 PNG = b"\x89PNG fake"
+JPEG = b"\xff\xd8\xff fake"  # the judge skips uploads that aren't real JPEG/PNG
 judge._references_or_none = lambda prompt: [PNG]
 judge.judge = lambda prompt, images, refs: [
     {"drawing": i, "rank": i, "score": 10 - i, "roast": f"roast {i}"} for i in range(1, len(images) + 1)
@@ -71,7 +72,7 @@ assert call(start_round, code)[0] == 409, "double start must fail"
 for p in (alex, sam):
     _, up = call(upload_url, code, playerId=p["playerId"])
     assert up["url"].startswith("https://drawings.s3.eu-west-2.amazonaws.com/") and "X-Amz-Signature" in up["url"], up
-    storage.put(up["key"], b"jpeg", "image/jpeg")  # what the phone's PUT does
+    storage.put(up["key"], JPEG, "image/jpeg")  # what the phone's PUT does
     assert call(submit, code, playerId=p["playerId"], key="rooms/evil.jpg")[0] == 400
     assert call(submit, code, playerId=p["playerId"], key=up["key"])[0] == 200
 assert executions == [{"code": code, "round": 1}], executions
@@ -127,6 +128,45 @@ assert call(get_room, code)[1]["state"] == "drawing"
 # Nonsense bodies are rejected, not 500s.
 assert submit.handler({"pathParameters": {"code": code}, "body": "not json"}, None)["statusCode"] == 403
 print("OK: full game passed")
+
+from shared.db import META, room_pk, table  # noqa: E402
+
+end_round.sfn.start_execution = lambda **kw: executions.append(json.loads(kw["input"]))
+
+
+def new_game(*names):
+    code = call(create_room)[1]["code"]
+    ids = [call(join_room, code, name=n)[1]["playerId"] for n in names]
+    call(start_round, code)
+    return code, ids
+
+
+# One bad upload must not sink the round: the judge skips it and ranks the rest.
+code, (good, bad) = new_game("Good", "Bad")
+for pid, data in ((good, JPEG), (bad, b"not an image")):
+    key = call(upload_url, code, playerId=pid)[1]["key"]
+    storage.put(key, data, "image/jpeg")
+    call(submit, code, playerId=pid, key=key)
+assert [r["playerId"] for r in judge.handler(executions[-1], None)["results"]] == [good]
+
+# Host screen dropped: a submit after the timer (+ grace) starts judging without everyone.
+code, (early, _) = new_game("Early", "Asleep")
+table.update_item(Key={"PK": room_pk(code), "SK": META}, UpdateExpression="SET endsAt = :t", ExpressionAttributeValues={":t": 0})
+key = call(upload_url, code, playerId=early)[1]["key"]
+storage.put(key, JPEG, "image/jpeg")
+call(submit, code, playerId=early, key=key)
+assert call(get_room, code)[1]["state"] == "judging"
+
+# Room caps at MAX_PLAYERS (Bedrock takes at most 20 images per call).
+code = call(create_room)[1]["code"]
+for i in range(join_room.MAX_PLAYERS):
+    assert call(join_room, code, name=f"P{i}")[0] == 200
+assert call(join_room, code, name="One too many")[0] == 409
+
+# Duplicate ranks from the model are renumbered so there's exactly one winner.
+reply = '{"results": [{"drawing": 1, "rank": 1, "score": 7, "roast": "a"}, {"drawing": 2, "rank": 1, "score": 5, "roast": "b"}]}'
+assert sorted(r["rank"] for r in judge._parse(reply, 2)) == [1, 2]
+print("OK: bad upload, late submit, room cap, rank renumbering")
 
 # Image models: Nova Canvas and Stability take different request bodies.
 import base64, io  # noqa: E401, E402
