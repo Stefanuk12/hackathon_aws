@@ -1,5 +1,4 @@
 import "../theme";
-import { api } from "../api";
 import { subscribe } from "../realtime";
 import { createRouter, type ScreenFactory } from "../router";
 import { toast } from "../ui";
@@ -8,25 +7,9 @@ import { themeScreen } from "./theme";
 import { judgingScreen } from "./judging";
 import { lobbyScreen } from "./lobby";
 import { revealScreen } from "./reveal";
+import { getOrCreateRoom } from "./session";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
-const CODE_KEY = "host:code";
-
-/** Reuse this tab's room across reloads; ?new forces a fresh room. */
-async function getOrCreateRoom() {
-  const saved = new URLSearchParams(location.search).has("new") ? null : sessionStorage.getItem(CODE_KEY);
-  if (saved) {
-    try {
-      await api.getRoom(saved);
-      return saved;
-    } catch {
-      /* room is gone: make a new one */
-    }
-  }
-  const { code } = await api.createRoom();
-  sessionStorage.setItem(CODE_KEY, code);
-  return code;
-}
 
 async function main() {
   const code = await getOrCreateRoom();

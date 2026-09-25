@@ -14,6 +14,7 @@ import {
   THEME_OPTIONS,
 } from "../config";
 import { mockAddBot } from "../mock";
+import { startNewRoom } from "./session";
 import type { ScreenFactory } from "../router";
 import { throneScene } from "../scenes";
 import type { ModeSetting, Room } from "../types";
@@ -87,6 +88,7 @@ export const lobbyScreen =
         ${aiHtml("ai-lg")}
         <div class="row">
           ${MOCK ? `<button class="btn btn-ghost" data-bot>+ Add bot</button>` : ""}
+          <button class="btn btn-ghost" data-new-room>New room ↻</button>
           <button class="btn btn-big" data-start>Start game ▶</button>
         </div>
       </footer>
@@ -172,7 +174,40 @@ export const lobbyScreen =
     });
     el.querySelector("[data-bot]")?.addEventListener("click", () => mockAddBot(code));
 
+    // New room: a fresh code, so everyone has to rejoin. Anyone already in the lobby would be
+    // stranded on a dead code, so that case asks twice rather than popping a browser dialog
+    // up on the projector.
+    const newRoom = $<HTMLButtonElement>(el, "[data-new-room]");
+    let armed = false;
+    let disarm: ReturnType<typeof setTimeout> | undefined;
+    newRoom.addEventListener("click", async () => {
+      const joined = latest.players.length;
+      if (joined > 0 && !armed) {
+        armed = true;
+        newRoom.textContent = `Kick ${joined} player${joined === 1 ? "" : "s"}? Tap again`;
+        newRoom.classList.add("btn-danger");
+        disarm = setTimeout(() => {
+          armed = false;
+          newRoom.textContent = "New room ↻";
+          newRoom.classList.remove("btn-danger");
+        }, 5000);
+        return;
+      }
+      clearTimeout(disarm);
+      newRoom.disabled = true;
+      newRoom.textContent = "Starting…";
+      try {
+        await startNewRoom();
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "Couldn't start a new room");
+        newRoom.disabled = false;
+        newRoom.textContent = "New room ↻";
+      }
+    });
+
+    let latest = room;
     const update = (room: Room) => {
+      latest = room;
       $(el, "[data-count]").textContent = `Players (${room.players.length})`;
       $(el, ".empty-hint").hidden = room.players.length > 0;
       syncChips($(el, "[data-players]"), room.players, (p) => chipState(p, false));

@@ -160,6 +160,12 @@ h2 {
   background: var(--lime);
 }
 
+.btn-danger {
+  border-color: var(--ai);
+  color: #fff;
+  background: var(--ai);
+}
+
 .btn-ghost {
   background: transparent;
   color: var(--text);
