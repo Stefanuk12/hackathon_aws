@@ -14,7 +14,7 @@ export const drawingScreen =
     <main class="host-screen host-drawing">
       <header class="row spread">
         ${logoHtml("logo-sm")}
-        <span class="pill">Round ${room.round}</span>
+        <span class="pill">Round ${room.round} of ${room.totalRounds}</span>
       </header>
       ${aiHtml("ai-lg")}
       <div class="card prompt-huge">${esc(room.prompt ?? "")}</div>

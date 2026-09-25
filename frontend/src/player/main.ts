@@ -40,6 +40,7 @@ function play(code: string, playerId: string) {
     if (!player) return ["gone", goneScreen(rejoin)];
     switch (room.state) {
       case "lobby":
+        ctx.submitted.clear(); // "Play again" restarts round numbers at 1
         return ["lobby", lobbyScreen(ctx)];
       case "drawing":
         return player.submitted || ctx.submitted.has(room.round)

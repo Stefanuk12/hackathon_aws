@@ -1,7 +1,7 @@
 import { aiHtml, aiSay } from "../ai";
 import { api } from "../api";
 import type { ScreenFactory } from "../router";
-import type { Result, Room } from "../types";
+import { isGameOver, type Result, type Room } from "../types";
 import { $, avatarHtml, confetti, esc, logoHtml, sleep, toast } from "../ui";
 
 const PAUSE_AFTER_ROAST_MS = 2200;
@@ -61,14 +61,16 @@ export const revealScreen =
     };
 
     const showBoard = (room: Room) => {
+      const final = isGameOver(room);
       skipButton.hidden = true;
-      step.textContent = `After round ${room.round}`;
+      step.textContent = final ? "Game over" : `After round ${room.round} of ${room.totalRounds}`;
       const roundScore = new Map((room.results ?? []).map((r) => [r.playerId, r.score]));
       const players = [...room.players].sort((a, b) => b.score - a.score);
       const medal = ["🥇", "🥈", "🥉"];
       stage.innerHTML = `
         <div class="board-wrap">
-          <h2 class="rank-label">Leaderboard</h2>
+          <h2 class="rank-label">${final ? "🏆 Final scores" : "Leaderboard"}</h2>
+          ${final ? aiHtml("ai-lg") : ""}
           <ol class="board">
             ${players
               .map(
@@ -84,16 +86,24 @@ export const revealScreen =
               .join("")}
           </ol>
           <div class="row" style="justify-content:flex-end">
-            <button class="btn btn-big" data-next>Next round ▶</button>
+            ${
+              final
+                ? `<button class="btn btn-big" data-next>Play again ↺</button>`
+                : `<button class="btn btn-big" data-next>Next round (${room.round + 1} of ${room.totalRounds}) ▶</button>`
+            }
           </div>
         </div>`;
+      if (final && players.length) {
+        confetti(80);
+        aiSay(stage, `${players[0].name} is the champion. The rest of you... I have notes.`);
+      }
       const next = $<HTMLButtonElement>(stage, "[data-next]");
       next.addEventListener("click", async () => {
         next.disabled = true;
         try {
-          await api.startRound(code);
+          await (final ? api.resetRoom(code) : api.startRound(code));
         } catch (err) {
-          toast(err instanceof Error ? err.message : "Couldn't start the round");
+          toast(err instanceof Error ? err.message : "Something went wrong");
           next.disabled = false;
         }
       });

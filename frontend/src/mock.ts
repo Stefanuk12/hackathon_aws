@@ -9,6 +9,7 @@
  * never write on reads, so they can't overwrite newer state from another tab.
  */
 import type { Api } from "./api";
+import { DEFAULT_ROUNDS, MAX_ROUNDS } from "./config";
 import type { Result, Room, RoomState } from "./types";
 import { pick, sleep } from "./ui";
 
@@ -62,6 +63,7 @@ interface MockRoom {
   code: string;
   state: RoomState;
   round: number;
+  totalRounds: number;
   prompt?: string;
   endsAt?: number;
   judgingAt?: number;
@@ -131,6 +133,7 @@ function view(room: MockRoom): Room {
     code: room.code,
     state: room.state,
     round: room.round,
+    totalRounds: room.totalRounds,
     prompt: room.prompt,
     endsAt: room.endsAt,
     players: room.players.map(({ playerId, name, score }) => ({ playerId, name, score, submitted: !!entries[playerId] })),
@@ -166,6 +169,11 @@ function scribble() {
   return canvas.toDataURL("image/jpeg", 0.7);
 }
 
+/** Drop the current round's images; localStorage only holds ~5 MB. */
+function freeImages(room: MockRoom) {
+  for (const key of Object.values(room.entries[room.round] ?? {})) localStorage.removeItem(imageKey(key));
+}
+
 const blobToDataUrl = (blob: Blob) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -179,7 +187,7 @@ export const mock: Api = {
     await latency();
     const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
     const code = Array.from({ length: 4 }, () => pick([...letters])).join("");
-    save({ code, state: "lobby", round: 0, players: [], entries: {}, usedPrompts: [] });
+    save({ code, state: "lobby", round: 0, totalRounds: DEFAULT_ROUNDS, players: [], entries: {}, usedPrompts: [] });
     return { code };
   },
 
@@ -202,12 +210,13 @@ export const mock: Api = {
     return view(room);
   },
 
-  async startRound(code) {
+  async startRound(code, totalRounds) {
     await latency();
     const room = load(code);
     if (room.state === "drawing" || room.state === "judging") throw new Error("Round already in progress");
-    // Free the previous round's images; localStorage only holds ~5 MB.
-    for (const key of Object.values(room.entries[room.round] ?? {})) localStorage.removeItem(imageKey(key));
+    if (room.state === "lobby" && totalRounds) room.totalRounds = Math.min(MAX_ROUNDS, Math.max(1, Math.round(totalRounds)));
+    if (room.round >= room.totalRounds) throw new Error("Game over! Press Play again.");
+    freeImages(room);
 
     const fresh = PROMPTS.filter((p) => !room.usedPrompts.includes(p));
     room.prompt = pick(fresh.length ? fresh : PROMPTS);
@@ -247,6 +256,16 @@ export const mock: Api = {
   async endRound(code) {
     const room = load(code);
     startJudging(room);
+    save(room);
+    return { ok: true };
+  },
+
+  async resetRoom(code) {
+    await latency();
+    const room = load(code);
+    freeImages(room);
+    Object.assign(room, { state: "lobby", round: 0, entries: {}, prompt: undefined, endsAt: undefined, results: undefined });
+    for (const p of room.players) p.score = 0;
     save(room);
     return { ok: true };
   },

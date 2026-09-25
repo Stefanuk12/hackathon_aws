@@ -6,11 +6,13 @@ export interface Api {
   createRoom(): Promise<{ code: string }>;
   joinRoom(code: string, name: string): Promise<{ playerId: string }>;
   getRoom(code: string): Promise<Room>;
-  startRound(code: string): Promise<{ round: number; prompt: string; endsAt: number }>;
+  /** totalRounds is only read when starting from the lobby. */
+  startRound(code: string, totalRounds?: number): Promise<{ round: number; prompt: string; endsAt: number }>;
   uploadUrl(code: string, playerId: string): Promise<{ url: string; key: string }>;
   putDrawing(url: string, image: Blob): Promise<void>;
   submit(code: string, playerId: string, key: string): Promise<{ ok: boolean }>;
   endRound(code: string): Promise<{ ok: boolean }>;
+  resetRoom(code: string): Promise<{ ok: boolean }>;
 }
 
 export const MOCK = import.meta.env.VITE_MOCK === "true";
@@ -33,7 +35,7 @@ const http: Api = {
   createRoom: () => call("POST", "/rooms"),
   joinRoom: (code, name) => call("POST", `/rooms/${code}/join`, { name }),
   getRoom: (code) => call("GET", `/rooms/${code}`),
-  startRound: (code) => call("POST", `/rooms/${code}/start`),
+  startRound: (code, totalRounds) => call("POST", `/rooms/${code}/start`, totalRounds ? { totalRounds } : {}),
   uploadUrl: (code, playerId) => call("POST", `/rooms/${code}/upload-url`, { playerId }),
   async putDrawing(url, image) {
     const res = await fetch(url, { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: image });
@@ -41,6 +43,7 @@ const http: Api = {
   },
   submit: (code, playerId, key) => call("POST", `/rooms/${code}/submit`, { playerId, key }),
   endRound: (code) => call("POST", `/rooms/${code}/end`),
+  resetRoom: (code) => call("POST", `/rooms/${code}/reset`),
 };
 
 export const api: Api = MOCK ? mock : http;

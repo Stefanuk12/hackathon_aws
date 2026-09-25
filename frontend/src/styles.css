@@ -961,6 +961,57 @@ h2 {
   text-align: right;
 }
 
+/* ---------- Rounds stepper ---------- */
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem 0.35rem 1rem;
+  background: var(--paper);
+  color: var(--ink);
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  box-shadow: 0 5px 0 var(--ink);
+}
+
+.stepper-label {
+  font-weight: 700;
+  margin-right: 0.25rem;
+}
+
+.stepper-btn {
+  font: inherit;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 3px solid var(--ink);
+  border-radius: 10px;
+  background: var(--cyan);
+  color: var(--ink);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.stepper-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.stepper-value {
+  min-width: 2ch;
+  text-align: center;
+  font-size: 1.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.final-card {
+  background: var(--yellow);
+}
+
 /* ---------- Confetti + toast ---------- */
 
 .confetti {

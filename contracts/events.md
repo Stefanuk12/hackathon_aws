@@ -13,5 +13,6 @@ Every event has the shape `{ "type": "<name>", ...payload }`.
 | `submission_in` | `{playerId, submitted, total}` | a drawing is submitted |
 | `judging` | `{round}` | all players are in, or the timer ended |
 | `results_ready` | `{round, results, audioUrl}` | the judge state machine finishes |
+| `room_reset` | `{}` | host pressed "Play again" |
 
 `results` has the same shape as in `fixtures/results.json`.

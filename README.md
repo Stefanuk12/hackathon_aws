@@ -97,7 +97,7 @@ Region: **eu-west-2 (London)**. Everything is serverless and defined in one SAM 
 
 | PK | SK | Attributes |
 |---|---|---|
-| `ROOM#<code>` | `META` | `state` (lobby \| drawing \| judging \| results), `round`, `prompt`, `endsAt` |
+| `ROOM#<code>` | `META` | `state` (lobby \| drawing \| judging \| results), `round`, `totalRounds`, `prompt`, `endsAt` |
 | `ROOM#<code>` | `PLAYER#<id>` | `name`, `score` |
 | `ROOM#<code>` | `ROUND#<n>#<playerId>` | `s3Key`, `rank`, `score`, `roast` |
 
@@ -109,10 +109,11 @@ Region: **eu-west-2 (London)**. Everything is serverless and defined in one SAM 
 POST /rooms                        → {code}
 POST /rooms/{code}/join            {name} → {playerId}
 GET  /rooms/{code}                 → full room state (also the polling fallback)
-POST /rooms/{code}/start           → {round, prompt, endsAt}
+POST /rooms/{code}/start           {totalRounds?} → {round, prompt, endsAt}   (409 after the last round)
 POST /rooms/{code}/upload-url      {playerId} → {url, key}
 POST /rooms/{code}/submit          {playerId, key}
 POST /rooms/{code}/end             host calls this when the timer hits 0
+POST /rooms/{code}/reset           "Play again": back to lobby, scores to 0
 ```
 
 ## Project structure
@@ -120,12 +121,12 @@ POST /rooms/{code}/end             host calls this when the timer hits 0
 Each folder has one owner, which keeps merge conflicts rare.
 
 ```
-contracts/        ALL      API + events contract, JSON fixtures (frontend mocks read these)
+contracts/        ALL      API + events contract, JSON example responses
 frontend/         1 + 2    Vite + TypeScript. index.html = phone, host.html = big screen
-  src/api.ts               fetch wrapper; VITE_MOCK=true serves contracts/fixtures
+  src/api.ts               fetch wrapper; VITE_MOCK=true swaps in src/mock.ts (fake backend)
   src/realtime.ts          polling now, AppSync Events later
   src/player/     1        canvas, upload, screens
-  src/host/       2        lobby, reveal
+  src/host/       2        lobby (+ rounds picker), drawing, judging, reveal, leaderboard
 backend/          3        SAM stack (template.yaml), Python 3.12 Lambdas
   src/shared/     3        DynamoDB keys, HTTP helpers, publish to AppSync Events
   src/rooms/      3        API handlers + save_results (last step of judging)

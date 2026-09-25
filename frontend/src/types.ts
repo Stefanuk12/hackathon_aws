@@ -17,10 +17,14 @@ export interface Result {
   imageUrl: string;
 }
 
+/** True once the last round's results are in: time for final scores, not "Next round". */
+export const isGameOver = (room: Room) => room.state === "results" && room.round >= room.totalRounds;
+
 export interface Room {
   code: string;
   state: RoomState;
   round: number;
+  totalRounds: number;
   prompt?: string;
   endsAt?: number;
   players: Player[];

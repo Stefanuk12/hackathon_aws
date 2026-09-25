@@ -1,6 +1,6 @@
 import { aiHtml, aiLoop, aiSay, JUDGING_LINES, WAITING_LINES } from "../ai";
 import type { ScreenFactory } from "../router";
-import type { Room } from "../types";
+import { isGameOver, type Room } from "../types";
 import { $, avatarHtml, confetti, countdown, esc, logoHtml, pick, syncChips, toast } from "../ui";
 import { createPad } from "./canvas";
 import { submitDrawing } from "./upload";
@@ -48,7 +48,7 @@ export const drawingScreen =
     <main class="screen draw-screen">
       <header class="draw-head">
         <div class="prompt-card">
-          <span class="prompt-label">Round ${room.round} · Draw this</span>
+          <span class="prompt-label">Round ${room.round}/${room.totalRounds} · Draw this</span>
           <strong>${esc(room.prompt ?? "")}</strong>
         </div>
         <div class="timer" aria-label="Seconds left"></div>
@@ -125,6 +125,15 @@ export const resultsScreen =
     const results = room.results ?? [];
     const mine = results.find((r) => r.playerId === ctx.playerId);
     const total = me(ctx, room)?.score ?? 0;
+    const final = isGameOver(room);
+    const overall = [...room.players].sort((a, b) => b.score - a.score).findIndex((p) => p.playerId === ctx.playerId) + 1;
+    const footer = final
+      ? `<section class="card stack center-text final-card">
+           <div class="prompt-label">Game over</div>
+           <div class="result-rank">${overall === 1 ? "🏆 Champion!" : `#${overall} overall`}</div>
+           <p>${total} pts across ${room.totalRounds} round${room.totalRounds === 1 ? "" : "s"}</p>
+         </section>`
+      : `<p class="muted" style="text-align:center">Round ${room.round} of ${room.totalRounds}. Waiting for the host…</p>`;
 
     el.innerHTML = mine
       ? `
@@ -138,7 +147,7 @@ export const resultsScreen =
         <p>Total: <strong>${total} pts</strong></p>
       </section>
       ${aiHtml()}
-      <p class="muted" style="text-align:center">Waiting for the host to start the next round…</p>
+      ${footer}
     </main>`
       : `
     <main class="screen center">
@@ -148,10 +157,11 @@ export const resultsScreen =
         <p>Total: <strong>${total} pts</strong></p>
       </section>
       ${aiHtml()}
+      ${footer}
     </main>`;
 
     aiSay(el, mine?.roast ?? "You didn't submit anything. I noticed. I always notice.");
-    if (mine?.rank === 1) confetti();
+    if (mine?.rank === 1 || (final && overall === 1)) confetti();
     return {};
   };
 

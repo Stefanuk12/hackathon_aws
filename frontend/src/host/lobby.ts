@@ -1,11 +1,13 @@
 import QRCode from "qrcode";
 import { aiHtml, aiLoop, LOBBY_LINES } from "../ai";
 import { api, MOCK } from "../api";
-import { joinUrl, TAGLINE } from "../config";
+import { DEFAULT_ROUNDS, joinUrl, MAX_ROUNDS, TAGLINE } from "../config";
 import { mockAddBot } from "../mock";
 import type { ScreenFactory } from "../router";
 import type { Room } from "../types";
 import { $, esc, logoHtml, syncChips, toast } from "../ui";
+
+const ROUNDS_KEY = "host:rounds";
 
 export const lobbyScreen =
   (code: string): ScreenFactory =>
@@ -32,7 +34,13 @@ export const lobbyScreen =
         ${aiHtml("ai-lg")}
         <div class="row">
           ${MOCK ? `<button class="btn btn-ghost" data-bot>+ Add bot</button>` : ""}
-          <button class="btn btn-big" data-start>Start round ▶</button>
+          <div class="stepper" role="group" aria-label="Number of rounds">
+            <span class="stepper-label">Rounds</span>
+            <button type="button" class="stepper-btn" data-dec aria-label="Fewer rounds">−</button>
+            <output class="stepper-value" aria-live="polite"></output>
+            <button type="button" class="stepper-btn" data-inc aria-label="More rounds">+</button>
+          </div>
+          <button class="btn btn-big" data-start>Start game ▶</button>
         </div>
       </footer>
     </main>`;
@@ -42,11 +50,27 @@ export const lobbyScreen =
       .catch(() => toast("Couldn't draw the QR code"));
     aiLoop(el, LOBBY_LINES, 4000);
 
+    // Remember the host's choice across games in this tab.
+    let rounds = Number(sessionStorage.getItem(ROUNDS_KEY)) || room.totalRounds || DEFAULT_ROUNDS;
+    const value = $(el, ".stepper-value");
+    const dec = $<HTMLButtonElement>(el, "[data-dec]");
+    const inc = $<HTMLButtonElement>(el, "[data-inc]");
+    const setRounds = (n: number) => {
+      rounds = Math.min(MAX_ROUNDS, Math.max(1, n));
+      value.textContent = String(rounds);
+      dec.disabled = rounds <= 1;
+      inc.disabled = rounds >= MAX_ROUNDS;
+      sessionStorage.setItem(ROUNDS_KEY, String(rounds));
+    };
+    setRounds(rounds);
+    dec.addEventListener("click", () => setRounds(rounds - 1));
+    inc.addEventListener("click", () => setRounds(rounds + 1));
+
     const start = $<HTMLButtonElement>(el, "[data-start]");
     start.addEventListener("click", async () => {
       start.disabled = true;
       try {
-        await api.startRound(code);
+        await api.startRound(code, rounds);
       } catch (err) {
         toast(err instanceof Error ? err.message : "Couldn't start the round");
         start.disabled = false;
