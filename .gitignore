@@ -231,3 +231,7 @@ samconfig.local.toml
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Local AI test outputs
+backend/reference*.jpg
+backend/host.mp3

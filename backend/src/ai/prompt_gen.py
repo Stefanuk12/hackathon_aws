@@ -3,28 +3,27 @@
 import os
 from pathlib import Path
 
-import boto3
+from ai.bedrock import bedrock, reply_text
 
-bedrock = boto3.client("bedrock-runtime")
 PROMPTS = Path(__file__).parent / "prompts"
-MODES = ("draw", "survive", "wit")
+# Draw keeps the original prompt_gen.txt; text modes have their own templates.
+SYSTEM = {
+    "draw": (PROMPTS / "prompt_gen.txt").read_text(),
+    "survive": (PROMPTS / "prompt_gen_survive.txt").read_text(),
+    "wit": (PROMPTS / "prompt_gen_wit.txt").read_text(),
+}
 
 
-def generate_prompt(mode="draw", previous_prompts=()):
-    """mode: "draw" | "survive" | "wit" (the round's mode, never "mixed")."""
-    if mode not in MODES:
-        raise ValueError(f"unknown mode {mode!r}")
-    system = (PROMPTS / f"prompt_gen_{mode}.txt").read_text()
-    # TODO person 4: tune temperature / theme; add difficulty if time allows.
+def generate_prompt(previous_prompts=(), theme=None, mode="draw"):
+    """Returns one short prompt for the round's mode ("draw" | "survive" | "wit") that isn't in previous_prompts."""
+    text = f"Previous prompts: {list(previous_prompts)}"
+    if theme:
+        text += f"\nTheme: {theme}"
+
     resp = bedrock.converse(
         modelId=os.environ["TEXT_MODEL_ID"],
-        system=[{"text": system}],
-        messages=[
-            {
-                "role": "user",
-                "content": [{"text": f"Previous prompts: {list(previous_prompts)}"}],
-            }
-        ],
-        inferenceConfig={"maxTokens": 80, "temperature": 1.0},
+        system=[{"text": SYSTEM[mode]}],
+        messages=[{"role": "user", "content": [{"text": text}]}],
+        inferenceConfig={"maxTokens": 1000},
     )
-    return resp["output"]["message"]["content"][0]["text"].strip().strip('"')
+    return reply_text(resp).strip().strip('"').strip()

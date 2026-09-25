@@ -6,7 +6,7 @@
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": { "FunctionName": "${JudgeFunctionArn}", "Payload.$": "$" },
-      "ResultSelector": { "results.$": "$.Payload.results" },
+      "ResultSelector": { "results.$": "$.Payload.results", "references.$": "$.Payload.references" },
       "ResultPath": "$.judge",
       "Retry": [{ "ErrorEquals": ["States.ALL"], "IntervalSeconds": 2, "MaxAttempts": 2, "BackoffRate": 2 }],
       "Next": "HostVoice"
@@ -15,7 +15,7 @@
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": { "FunctionName": "${HostVoiceFunctionArn}", "Payload.$": "$" },
-      "ResultSelector": { "audioUrl.$": "$.Payload.audioUrl" },
+      "ResultSelector": { "audioUrl.$": "$.Payload.audioUrl", "script.$": "$.Payload.script" },
       "ResultPath": "$.voice",
       "Catch": [{ "ErrorEquals": ["States.ALL"], "ResultPath": "$.voiceError", "Next": "SaveResults" }],
       "Next": "SaveResults"

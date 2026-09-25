@@ -7,4 +7,4 @@ Rank everyone from best to worst plan, and give each a score from 0-10 (survivor
 For each answer, narrate what happened in ONE short, dramatic, funny sentence (never mean-spirited about the person).
 
 Reply with JSON only:
-{{"results": [{{"answer": 1, "rank": 1, "score": 0-10, "survived": true, "roast": "..."}}]}}
+{"results": [{"answer": 1, "rank": 1, "score": 0-10, "survived": true, "roast": "..."}]}
