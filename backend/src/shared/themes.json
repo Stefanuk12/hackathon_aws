@@ -182,18 +182,19 @@
   {
     "id": "marketplace",
     "service": "AWS Marketplace",
-    "emoji": "M",
+    "emoji": "🛒",
     "tagline": "Accessing non-AWS services",
     "what": "A storefront to allow access to non-AWS services alongside AWS ones",
     "facts": [
-      "AWS Marketplace was launched in 2012",
-      "There are 42,240 products and services on AWS marketplace "
+      "AWS Marketplace launched in 2012.",
+      "It lists tens of thousands of products you can buy and deploy straight into your account."
     ],
-    "inAmacide": "We don't use any marketplace products.",
+    "inAmacide": "We don't use any Marketplace products — everything here is built from AWS services directly.",
     "promptHint": "Shopping, software, independent",
     "examples": {
       "draw": "A shop or shopping basket",
-      "survive": "Lorum Ipsum",
+      "learn": "What can you buy on AWS Marketplace, and who sells it?",
       "wit": "Best new product idea"
-    }}
+    }
+  }
 ]
