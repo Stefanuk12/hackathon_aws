@@ -157,6 +157,51 @@ pitch/            5        diagram, slides, demo script
 
 Every handler is a stub that returns a response shaped like the contract, so the stack can be deployed and the frontend pointed at it straight away. Search for `TODO person N` to find your work.
 
+## Running it on AWS (read this before the demo)
+
+**This hackathon account cannot deploy the stack.** `WSParticipantRole` has `cloudformation:*`
+denied in every region and `iam:*` explicitly denied, so there is no way to create a stack or
+the Lambda execution roles it needs. `sam build` works; `sam deploy` cannot.
+
+What the account *does* allow, and what we therefore use for real:
+
+| Service | Status | Used for |
+|---|---|---|
+| **Amazon Bedrock** (us-west-2) | ✅ | Writing every prompt, judging drawings (vision) and answers (text) |
+| **Amazon DynamoDB** (us-east-1) | ✅ | Table `amacide` — rooms, players, entries, scores |
+| **Amazon S3** (us-east-1) | ✅ | Bucket `amacide-985539753760` — drawings via presigned URLs |
+| Lambda / API Gateway / Step Functions | ❌ | Need IAM roles, which are denied |
+| AppSync Events | ❌ | Denied — the screens poll `GET /rooms/{code}` instead (documented fallback) |
+| Amazon Polly | ❌ | Denied — `host_voice` returns `hostScript` and the browser reads it aloud |
+
+So the API runs on the laptop via [backend/scripts/serve_local.py](backend/scripts/serve_local.py),
+which serves the **same `rooms/` handlers** against the real table, bucket and models. Step
+Functions is replaced by a thread running the same Judge → HostVoice → SaveResults order.
+
+```sh
+# 1. Backend (needs boto3 and working AWS credentials)
+cd backend && python scripts/serve_local.py          # http://0.0.0.0:8000
+
+# 2. Frontend, pointed at the laptop's LAN IP so phones can reach it
+cd frontend
+cat > .env.local <<'ENV'
+VITE_API_URL=http://<laptop-lan-ip>:8000
+VITE_PUBLIC_URL=http://<laptop-lan-ip>:5173
+ENV
+npm run dev
+```
+
+Open `http://<laptop-lan-ip>:5173/host.html` on the big screen; phones scan the QR code.
+Everyone must be on the same wifi.
+
+> **Serve the frontend over HTTP, not HTTPS.** The API is plain HTTP on the laptop, and a
+> page served over HTTPS (S3/CloudFront) is not allowed to call it — browsers block mixed
+> content. That is why the frontend is served from Vite rather than uploaded to S3.
+
+If you get an account that *can* deploy, the template is ready: `sam build && sam deploy`
+brings up the full serverless architecture, and the frontend just needs `VITE_API_URL`
+repointed at the stack's `ApiUrl`.
+
 ## Getting started
 
 ```sh
