@@ -178,5 +178,22 @@
       "survive": "Real-time updates freeze mid-game. Every screen is stuck on the same frame.",
       "wit": "The worst message to broadcast to every phone at once"
     }
-  }
+  },
+  {
+    "id": "marketplace",
+    "service": "AWS Marketplace",
+    "emoji": "M",
+    "tagline": "Accessing non-AWS services",
+    "what": "A storefront to allow access to non-AWS services alongside AWS ones",
+    "facts": [
+      "AWS Marketplace was launched in 2012",
+      "There are 42,240 products and services on AWS marketplace "
+    ],
+    "inAmacide": "We don't use any marketplace products.",
+    "promptHint": "Shopping, software, independent",
+    "examples": {
+      "draw": "A shop or shopping basket",
+      "survive": "Lorum Ipsum",
+      "wit": "Best new product idea"
+    },
 ]
