@@ -2,7 +2,7 @@
 
 Usage: python scripts/test_text_grading.py
 Uses your AWS login; costs a few pence of Bedrock. Override the model with TEXT_MODEL_ID.
-The hackathon account blocks Bedrock in eu-west-2, so this defaults to us-east-1.
+The hackathon account blocks Bedrock in eu-west-2, so this uses us-west-2 like the stack.
 """
 
 import os
@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 os.environ.setdefault("TEXT_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
-os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
+os.environ.setdefault("TEXT_REGION", "us-west-2")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ai.text_grader import grade  # noqa: E402

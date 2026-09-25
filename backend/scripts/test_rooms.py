@@ -124,6 +124,12 @@ try:
 except RuntimeError:
     pass
 assert call(get_room, code)[1]["state"] == "drawing"
+# ...and the last submit still succeeds for the player: their drawing is saved, /end retries.
+for p in (alex, sam):
+    key = call(upload_url, code, playerId=p["playerId"])[1]["key"]
+    storage.put(key, JPEG, "image/jpeg")
+    assert call(submit, code, playerId=p["playerId"], key=key)[0] == 200
+assert call(get_room, code)[1]["state"] == "drawing"
 
 # Nonsense bodies are rejected, not 500s.
 assert submit.handler({"pathParameters": {"code": code}, "body": "not json"}, None)["statusCode"] == 403

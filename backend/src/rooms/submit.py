@@ -38,5 +38,9 @@ def handler(event, context):
     # and never called /end. Matches the mock backend.
     late = int(time.time() * 1000) > meta["endsAt"] + GRACE_MS
     if late or set(players) <= set(submitted):
-        start_judging(code)
+        try:
+            start_judging(code)
+        except Exception as e:
+            # The drawing is saved, so don't tell the player it failed; the host's /end retries judging.
+            print("Could not start judging:", e)
     return ok({"ok": True})

@@ -3,9 +3,9 @@
 The judge compares players' drawings against these to decide what the key
 elements of the prompt are.
 
-Works with Amazon Nova Canvas (the template default) and Stability models, which
-take different request bodies. Neither runs in eu-west-2, so images come from
-IMAGE_REGION (eu-west-1 by default for Nova Canvas).
+Works with Stability models (the template default) and Amazon Nova Canvas, which
+take different request bodies. The hackathon account blocks Bedrock in eu-west-2 and
+Nova Canvas is legacy, so images come from Stability Image Core in IMAGE_REGION (us-west-2).
 """
 
 import base64
@@ -22,7 +22,7 @@ NEGATIVE = "text, letters, words, writing, photorealistic, shading"
 
 
 def _model():
-    return os.environ.get("IMAGE_MODEL_ID", "amazon.nova-canvas-v1:0")
+    return os.environ.get("IMAGE_MODEL_ID", "stability.stable-image-core-v1:1")
 
 
 def _invoke(body):

@@ -3,15 +3,20 @@ Transform: AWS::Serverless-2016-10-31
 Description: Amacide - AWS North x Northumbria Hackathon
 
 Parameters:
+  # The hackathon account's org policy blocks Bedrock outside US regions, and Nova Canvas is
+  # legacy, so all Bedrock calls go to us-west-2 (the rest of the stack stays in eu-west-2).
   TextModelId:
     Type: String
-    Default: eu.anthropic.claude-sonnet-4-5-20250929-v1:0 # TODO person 4: confirm model access + ID in region
+    Default: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  TextRegion:
+    Type: String
+    Default: us-west-2
   ImageModelId:
     Type: String
-    Default: amazon.nova-canvas-v1:0 # or a Stability model, e.g. stability.stable-image-core-v1:1 (set ImageRegion to us-west-2)
+    Default: stability.stable-image-core-v1:1
   ImageRegion:
     Type: String
-    Default: eu-west-1 # image models aren't in eu-west-2; Nova Canvas is in eu-west-1
+    Default: us-west-2
 
 Globals:
   Function:
@@ -27,6 +32,7 @@ Globals:
         EVENTS_HTTP_DOMAIN: !GetAtt EventApi.Dns.Http
         EVENTS_API_KEY: !GetAtt EventApiKey.ApiKey
         TEXT_MODEL_ID: !Ref TextModelId
+        TEXT_REGION: !Ref TextRegion
         IMAGE_MODEL_ID: !Ref ImageModelId
         IMAGE_REGION: !Ref ImageRegion
 
@@ -67,6 +73,8 @@ Resources:
     Type: AWS::AppSync::ApiKey
     Properties:
       ApiId: !GetAtt EventApi.ApiId
+      # Without this the key dies 7 days after deploy and realtime updates silently stop.
+      Expires: 1814400000 # 2027-07-01 (AppSync allows at most 365 days ahead)
 
   RoomsNamespace:
     Type: AWS::AppSync::ChannelNamespace
