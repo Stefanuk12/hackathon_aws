@@ -210,7 +210,49 @@ Resources:
         - LambdaInvokePolicy: { FunctionName: !Ref SaveResultsFunction }
 
   # ---------- Frontend hosting ----------
-  # TODO person 3: S3 bucket + CloudFront distribution (OAC) for frontend/dist.
+  # Private bucket; only CloudFront can read it (OAC). Upload with:
+  #   aws s3 sync frontend/dist s3://<FrontendBucketName> --delete
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+
+  FrontendOac:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${AWS::StackName}-frontend"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: frontend
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt FrontendOac.Id
+            S3OriginConfig: { OriginAccessIdentity: "" }
+        DefaultCacheBehavior:
+          TargetOriginId: frontend
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # AWS managed "CachingOptimized"
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal: { Service: cloudfront.amazonaws.com }
+            Action: s3:GetObject
+            Resource: !Sub "${FrontendBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}"
 
 Outputs:
   ApiUrl:
@@ -223,3 +265,7 @@ Outputs:
     Value: !GetAtt EventApiKey.ApiKey
   DrawingsBucketName:
     Value: !Ref DrawingsBucket
+  FrontendBucketName:
+    Value: !Ref FrontendBucket
+  FrontendUrl:
+    Value: !Sub "https://${FrontendDistribution.DomainName}"
