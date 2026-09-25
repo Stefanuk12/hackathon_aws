@@ -80,7 +80,7 @@ Region: **eu-west-2 (London)**. Everything is serverless and defined in one SAM 
 
 | Service | What we'd use it for | Owner |
 |---|---|---|
-| **Bedrock: Amazon Nova Canvas** | The AI player draws its own entry, judged blind with the humans. ⚠️ Check it's available in eu-west-2; it may need a cross-region call | 4 |
+| **Bedrock: Amazon Nova Canvas** | Draws the judge's reference images (core), and in the stretch goal the AI player's own entry. Not in eu-west-2, so it's called in `ImageRegion` (eu-west-1) | 4 |
 | **Bedrock Guardrails** | Keep the AI's roasts playful, never offensive, which matters with an audience of judges | 4 |
 | **Amazon Rekognition** (`DetectModerationLabels`) | Filter inappropriate drawings before they appear on the big screen | 4 |
 | **Amazon EventBridge Scheduler** | End the round on the server when the timer expires, rather than relying on the host screen calling `/end` | 3 |
@@ -97,9 +97,11 @@ Region: **eu-west-2 (London)**. Everything is serverless and defined in one SAM 
 
 | PK | SK | Attributes |
 |---|---|---|
-| `ROOM#<code>` | `META` | `state` (lobby \| drawing \| judging \| results), `round`, `totalRounds`, `prompt`, `endsAt` |
-| `ROOM#<code>` | `PLAYER#<id>` | `name`, `score` |
-| `ROOM#<code>` | `ROUND#<n>#<playerId>` | `s3Key`, `rank`, `score`, `roast` |
+| `ROOM#<code>` | `META` | `state` (lobby \| drawing \| judging \| results), `round`, `totalRounds`, `prompt`, `endsAt`, `usedPrompts`, `audioUrl` |
+| `ROOM#<code>` | `PLAYER#<id>` | `name` |
+| `ROOM#<code>` | `ROUND#<n>#<playerId>` | `s3Key`, then after judging `rank`, `score`, `roast`, `imageUrl` |
+
+A player's total score isn't stored: `GET /rooms/{code}` sums their `ROUND#` scores. That makes saving results safe to retry, and "Play again" just deletes the `ROUND#` rows.
 
 ### HTTP API, realtime events and response shapes
 
@@ -150,6 +152,11 @@ cp .env.example .env.local           # later: fill from stack outputs, then `npm
 # Backend (person 3 deploys; region eu-west-2 in samconfig.toml)
 cd backend && sam build && sam deploy
 sam sync --watch                     # hot-redeploy while developing
+pip install "moto[dynamodb,s3]" && python scripts/test_rooms.py   # play a whole game against fake AWS
+
+# Frontend hosting (person 3): fill frontend/.env.local from the stack outputs first
+cd frontend && npm run build
+aws s3 sync dist s3://<FrontendBucketName> --delete   # then open the FrontendUrl output
 
 # Judge prompt tuning (person 4)
 cd backend && TEXT_MODEL_ID=<id> AWS_REGION=eu-west-2 python scripts/test_judge.py "A penguin running a lemonade stand"

@@ -20,7 +20,12 @@ def error(message, status=400):
 
 
 def body(event):
-    return json.loads(event.get("body") or "{}")
+    """The request's JSON object, or {} if it's missing or not valid JSON (handlers validate fields)."""
+    try:
+        parsed = json.loads(event.get("body") or "{}")
+    except ValueError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def room_code(event):

@@ -1,11 +1,10 @@
 """Game-show host voice for the reveal, via Polly."""
 
-import os
-
 import boto3
 
+from shared import storage
+
 polly = boto3.client("polly")
-s3 = boto3.client("s3")
 
 
 def build_script(results):
@@ -36,12 +35,9 @@ def handler(event, context):
             Text=script, Engine="neural", VoiceId="Brian", OutputFormat="mp3"
         )["AudioStream"].read()
 
-        bucket = os.environ["BUCKET_NAME"]
         key = f"rooms/{event['code']}/{event['round']}/host.mp3"
-        s3.put_object(Bucket=bucket, Key=key, Body=audio, ContentType="audio/mpeg")
-        url = s3.generate_presigned_url(
-            "get_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=3600
-        )
+        storage.put(key, audio, "audio/mpeg")
+        url = storage.presign_get(key)
     except Exception as e:
         print("Polly/S3 failed, returning script only:", e)
         url = None

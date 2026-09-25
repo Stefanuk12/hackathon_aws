@@ -8,6 +8,12 @@ def handler(event, context):
     if not meta:
         return error(f"Room {code} not found", 404)
 
+    # A player's score is the sum of their judged entries, so there's no running total to keep in sync.
+    scores = {}
+    for e in entries:
+        pid = e["SK"].split("#", 2)[2]
+        scores[pid] = scores.get(pid, 0) + e.get("score", 0)
+
     this_round = round_entries(entries, meta["round"])
     room = {
         "code": code,
@@ -17,13 +23,13 @@ def handler(event, context):
         "prompt": meta.get("prompt"),
         "endsAt": meta.get("endsAt"),
         "players": [
-            {"playerId": pid, "name": p["name"], "score": p["score"], "submitted": pid in this_round}
+            {"playerId": pid, "name": p["name"], "score": scores.get(pid, 0), "submitted": pid in this_round}
             for pid, p in players.items()
         ],
         "audioUrl": meta.get("audioUrl"),
     }
     if meta["state"] == "results":
-        ranked = sorted((e for e in this_round.items() if "rank" in e[1]), key=lambda e: e[1]["rank"])
+        judged = sorted((e for e in this_round.items() if "rank" in e[1]), key=lambda e: e[1]["rank"])
         room["results"] = [
             {
                 "playerId": pid,
@@ -33,6 +39,6 @@ def handler(event, context):
                 "roast": e["roast"],
                 "imageUrl": e.get("imageUrl", ""),
             }
-            for pid, e in ranked
+            for pid, e in judged
         ]
     return ok(room)

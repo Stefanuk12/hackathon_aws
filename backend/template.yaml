@@ -8,7 +8,10 @@ Parameters:
     Default: eu.anthropic.claude-sonnet-4-5-20250929-v1:0 # TODO person 4: confirm model access + ID in region
   ImageModelId:
     Type: String
-    Default: amazon.nova-canvas-v1:0
+    Default: amazon.nova-canvas-v1:0 # or a Stability model, e.g. stability.stable-image-core-v1:1 (set ImageRegion to us-west-2)
+  ImageRegion:
+    Type: String
+    Default: eu-west-1 # image models aren't in eu-west-2; Nova Canvas is in eu-west-1
 
 Globals:
   Function:
@@ -25,6 +28,7 @@ Globals:
         EVENTS_API_KEY: !GetAtt EventApiKey.ApiKey
         TEXT_MODEL_ID: !Ref TextModelId
         IMAGE_MODEL_ID: !Ref ImageModelId
+        IMAGE_REGION: !Ref ImageRegion
 
 Resources:
   # ---------- Storage ----------
@@ -99,9 +103,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: rooms/get_room.handler
-      Policies:
-        - DynamoDBReadPolicy: { TableName: !Ref GameTable }
-        - S3ReadPolicy: { BucketName: !Ref DrawingsBucket }
+      Policies: [{ DynamoDBReadPolicy: { TableName: !Ref GameTable } }]
       Events:
         Api: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: GET, Path: "/rooms/{code}" } }
 
@@ -170,7 +172,7 @@ Resources:
       Timeout: 120
       Policies:
         - DynamoDBReadPolicy: { TableName: !Ref GameTable }
-        - S3ReadPolicy: { BucketName: !Ref DrawingsBucket }
+        - S3CrudPolicy: { BucketName: !Ref DrawingsBucket } # reads drawings, writes reference images
         - Statement:
             - Effect: Allow
               Action: [bedrock:InvokeModel]

@@ -16,6 +16,6 @@ def handler(event, context):
         return error(f"Room {code} not found", 404)
 
     player_id = f"p_{secrets.token_hex(3)}"
-    table.put_item(Item={"PK": room_pk(code), "SK": player_sk(player_id), "name": name, "score": 0})
+    table.put_item(Item={"PK": room_pk(code), "SK": player_sk(player_id), "name": name})
     publish(code, "player_joined", playerId=player_id, name=name)
     return ok({"playerId": player_id})

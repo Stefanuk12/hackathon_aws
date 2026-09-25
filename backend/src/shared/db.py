@@ -21,13 +21,10 @@ def entry_sk(round_no, player_id):
     return f"ROUND#{round_no}#{player_id}"
 
 
-def drawing_key(code, round_no, player_id):
-    return f"rooms/{code}/{round_no}/{player_id}.jpg"
-
-
 def load_room(code):
     """All of a room's rows in one query: (META or None, {playerId: player row}, [ROUND# rows])."""
-    items = table.query(KeyConditionExpression=Key("PK").eq(room_pk(code)))["Items"]
+    # Consistent, so the "has everyone submitted?" check sees writes made a moment ago.
+    items = table.query(KeyConditionExpression=Key("PK").eq(room_pk(code)), ConsistentRead=True)["Items"]
     meta = next((i for i in items if i["SK"] == META), None)
     players = {i["SK"].split("#", 1)[1]: i for i in items if i["SK"].startswith("PLAYER#")}
     entries = [i for i in items if i["SK"].startswith("ROUND#")]

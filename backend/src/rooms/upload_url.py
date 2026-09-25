@@ -1,11 +1,6 @@
-import os
-
-import boto3
-
-from shared.db import drawing_key, load_room
+from shared.db import load_room
 from shared.http import body, error, ok, room_code
-
-s3 = boto3.client("s3")
+from shared.storage import drawing_key, presign_put
 
 
 def handler(event, context):
@@ -20,9 +15,4 @@ def handler(event, context):
         return error("Too late! The round is over.", 409)
 
     key = drawing_key(code, meta["round"], player_id)
-    url = s3.generate_presigned_url(
-        "put_object",
-        Params={"Bucket": os.environ["BUCKET_NAME"], "Key": key, "ContentType": "image/jpeg"},
-        ExpiresIn=300,
-    )
-    return ok({"url": url, "key": key})
+    return ok({"url": presign_put(key, "image/jpeg"), "key": key})
