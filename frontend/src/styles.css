@@ -912,6 +912,14 @@ h2 {
   gap: 1.2rem;
 }
 
+/* Final scores: shift the board left so the trophy mascot beside it stays visible. */
+.board-wrap.board-final {
+  max-width: 660px;
+  justify-self: start;
+  margin-left: clamp(0px, 3vw, 60px);
+  margin-right: auto;
+}
+
 .board {
   list-style: none;
   margin: 0;
@@ -1325,6 +1333,13 @@ h2 {
   opacity: 0.45;
 }
 
+.scene-trophy {
+  right: 2vw;
+  height: min(82vh, 780px);
+  opacity: 0.62;
+  filter: drop-shadow(0 0 45px rgba(255, 210, 63, 0.35));
+}
+
 /* throne */
 .sit-robot {
   animation: breathe 3.2s ease-in-out infinite;
@@ -1361,6 +1376,38 @@ h2 {
   transform-box: fill-box;
   transform-origin: center;
   animation: sparkle 3.3s ease-in-out infinite;
+}
+
+/* winners' circle */
+.champ {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: champ-hop 1.5s cubic-bezier(0.4, 0, 0.5, 1) infinite;
+}
+
+.champ-arms {
+  animation: champ-hoist 1.5s ease-in-out infinite;
+}
+
+.champ-eye {
+  animation: none;
+  filter: drop-shadow(0 0 10px var(--ai));
+}
+
+.champ-grin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: grin 1.5s ease-in-out infinite;
+}
+
+.trophy {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: trophy-wave 3s ease-in-out infinite;
+}
+
+.gleam {
+  animation: gleam 2.6s ease-in-out infinite;
 }
 
 /* thinker */
@@ -1470,6 +1517,59 @@ h2 {
   }
 }
 
+@keyframes champ-hop {
+  0%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+  40% {
+    transform: translateY(-14px) scaleY(1.02);
+  }
+  55% {
+    transform: translateY(-14px) scaleY(1.02);
+  }
+  85% {
+    transform: translateY(0) scaleY(0.97);
+  }
+}
+
+@keyframes champ-hoist {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  45% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes grin {
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+@keyframes trophy-wave {
+  0%,
+  100% {
+    transform: rotate(-5deg);
+  }
+  50% {
+    transform: rotate(5deg);
+  }
+}
+
+@keyframes gleam {
+  0%,
+  55% {
+    transform: translateX(0) skewX(-18deg);
+  }
+  85%,
+  100% {
+    transform: translateX(360px) skewX(-18deg);
+  }
+}
+
 @keyframes head-tilt {
   0%,
   100% {
@@ -1547,6 +1647,15 @@ h2 {
   75% {
     opacity: 1;
     transform: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  /* Not enough width to sit beside the mascot: centre the board again. */
+  .board-final {
+    max-width: 900px;
+    justify-self: center;
+    margin-left: 0;
   }
 }
 

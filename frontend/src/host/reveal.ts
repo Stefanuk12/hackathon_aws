@@ -2,6 +2,7 @@ import { aiHtml, aiSay } from "../ai";
 import { api } from "../api";
 import { MODES } from "../config";
 import type { ScreenFactory } from "../router";
+import { trophyScene } from "../scenes";
 import { isGameOver, type Result, type Room } from "../types";
 import { $, avatarHtml, confetti, entryHtml, esc, logoHtml, sleep, stampHtml, toast } from "../ui";
 
@@ -107,7 +108,8 @@ export const revealScreen =
       const players = [...room.players].sort((a, b) => b.score - a.score);
       const medal = ["🥇", "🥈", "🥉"];
       stage.innerHTML = `
-        <div class="board-wrap">
+        ${final ? trophyScene() : ""}
+        <div class="board-wrap ${final ? "board-final" : ""}">
           <h2 class="rank-label">${final ? "🏆 Final scores" : "Leaderboard"}</h2>
           ${final ? aiHtml("ai-lg") : ""}
           <ol class="board">

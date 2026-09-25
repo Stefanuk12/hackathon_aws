@@ -127,3 +127,71 @@ export const thinkerScene = () => `
     <rect class="finger" x="240" y="296" width="15" height="36" rx="7.5" fill="#3a2a6b" stroke="${INK}" stroke-width="4" />
   </svg>
 </div>`;
+
+/** Winners' circle: the mascot hoisting a trophy over its head. */
+export const trophyScene = () => `
+<div class="scene scene-trophy" aria-hidden="true">
+  <svg viewBox="0 0 400 560">
+    <defs>
+      <clipPath id="cup-clip">
+        <path d="M152 36 H248 V78 Q248 118 200 128 Q152 118 152 78 Z" />
+      </clipPath>
+    </defs>
+
+    <ellipse cx="200" cy="542" rx="140" ry="12" fill="rgba(0,0,0,0.35)" />
+
+    <g class="champ">
+      <!-- arms + trophy, behind the body so the raised arms read as arms -->
+      <g class="champ-arms">
+        <path d="M152 330 Q92 262 158 164" fill="none" stroke="${INK}" stroke-width="38" stroke-linecap="round" />
+        <path d="M152 330 Q92 262 158 164" fill="none" stroke="#3a2a6b" stroke-width="28" stroke-linecap="round" />
+        <path d="M248 330 Q308 262 242 164" fill="none" stroke="${INK}" stroke-width="38" stroke-linecap="round" />
+        <path d="M248 330 Q308 262 242 164" fill="none" stroke="#3a2a6b" stroke-width="28" stroke-linecap="round" />
+
+        <g class="trophy">
+          <path d="M152 36 H248 V78 Q248 118 200 128 Q152 118 152 78 Z" fill="#ffd23f" stroke="${INK}" stroke-width="5" stroke-linejoin="round" />
+          <path d="M152 48 Q118 48 120 72 Q122 94 152 98" fill="none" stroke="#ffd23f" stroke-width="11" stroke-linecap="round" />
+          <path d="M248 48 Q282 48 280 72 Q278 94 248 98" fill="none" stroke="#ffd23f" stroke-width="11" stroke-linecap="round" />
+          <rect x="188" y="126" width="24" height="22" fill="#ffd23f" stroke="${INK}" stroke-width="5" />
+          <rect x="164" y="144" width="72" height="16" rx="5" fill="#ffd23f" stroke="${INK}" stroke-width="5" />
+          <path d="M180 60 l5 12 12 5 -12 5 -5 12 -5 -12 -12 -5 12 -5Z" fill="#fffdf6" opacity=".9" />
+          <g clip-path="url(#cup-clip)">
+            <rect class="gleam" x="-70" y="20" width="30" height="120" fill="#fffdf6" opacity=".7" transform="skewX(-18)" />
+          </g>
+        </g>
+
+        <!-- hands gripping the trophy base -->
+        <circle cx="158" cy="158" r="18" fill="#3a2a6b" stroke="${INK}" stroke-width="4" />
+        <circle cx="242" cy="158" r="18" fill="#3a2a6b" stroke="${INK}" stroke-width="4" />
+      </g>
+
+      <!-- legs + feet -->
+      <rect x="166" y="432" width="30" height="72" rx="10" fill="#2c2150" stroke="${INK}" stroke-width="4" />
+      <rect x="204" y="432" width="30" height="72" rx="10" fill="#2c2150" stroke="${INK}" stroke-width="4" />
+      <rect x="154" y="498" width="50" height="22" rx="10" fill="#3a2a6b" stroke="${INK}" stroke-width="4" />
+      <rect x="196" y="498" width="50" height="22" rx="10" fill="#3a2a6b" stroke="${INK}" stroke-width="4" />
+
+      <!-- body -->
+      <rect x="140" y="312" width="120" height="130" rx="30" fill="#3a2a6b" stroke="${INK}" stroke-width="5" />
+      <rect x="170" y="348" width="60" height="42" rx="10" fill="#0b0718" stroke="${INK}" stroke-width="3" />
+      <circle class="chest-light" cx="185" cy="369" r="6" fill="#3ee0cf" />
+      <circle class="chest-light" cx="200" cy="369" r="6" fill="#ffd23f" style="animation-delay:.4s" />
+      <circle class="chest-light" cx="215" cy="369" r="6" fill="#ff3864" style="animation-delay:.8s" />
+
+      <!-- head -->
+      <rect x="187" y="294" width="26" height="22" fill="#2c2150" stroke="${INK}" stroke-width="4" />
+      <rect x="136" y="192" width="128" height="112" rx="32" fill="#2c2150" stroke="${INK}" stroke-width="5" />
+      <circle cx="200" cy="232" r="25" fill="${INK}" />
+      <circle class="robot-eye champ-eye" cx="200" cy="232" r="12" />
+      <path class="champ-grin" d="M168 264 Q200 290 234 262" fill="none" stroke="#3ee0cf" stroke-width="9" stroke-linecap="round" />
+    </g>
+
+    <g class="sparkles" fill="#ffd23f">
+      <path class="sparkle" d="M58 150 l5 12 12 5 -12 5 -5 12 -5 -12 -12 -5 12 -5Z" />
+      <path class="sparkle" style="animation-delay:.9s" d="M338 122 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4Z" />
+      <path class="sparkle" style="animation-delay:1.8s" d="M310 30 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4Z" />
+      <path class="sparkle" style="animation-delay:2.6s" d="M78 44 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4Z" />
+      <path class="sparkle" style="animation-delay:1.3s" d="M348 250 l5 12 12 5 -12 5 -5 12 -5 -12 -12 -5 12 -5Z" />
+    </g>
+  </svg>
+</div>`;
