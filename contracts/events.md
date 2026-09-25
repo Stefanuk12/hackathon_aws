@@ -9,7 +9,7 @@ Every event has the shape `{ "type": "<name>", ...payload }`.
 | type | Payload | Sent when |
 |---|---|---|
 | `player_joined` | `{playerId, name}` | someone joins |
-| `round_started` | `{round, prompt, endsAt}` | host starts a round |
+| `round_started` | `{round, roundMode, prompt, endsAt}` | host starts a round |
 | `submission_in` | `{playerId, submitted, total}` | a drawing is submitted |
 | `judging` | `{round}` | all players are in, or the timer ended |
 | `results_ready` | `{round, results, audioUrl}` | the judge state machine finishes |

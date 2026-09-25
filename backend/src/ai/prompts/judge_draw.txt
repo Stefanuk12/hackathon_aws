@@ -7,4 +7,4 @@ Heavily penalise drawings that rely on written words or labels.
 For each drawing write a one-line, playful roast (never mean-spirited about the person).
 
 Reply with JSON only:
-{"results": [{"drawing": 1, "rank": 1, "score": 0-10, "roast": "..."}]}
+{{"results": [{{"drawing": 1, "rank": 1, "score": 0-10, "roast": "..."}}]}}

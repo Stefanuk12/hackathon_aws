@@ -1,12 +1,13 @@
 import { aiHtml, aiSay } from "../ai";
 import { api } from "../api";
+import { MODES } from "../config";
 import type { ScreenFactory } from "../router";
 import { isGameOver, type Result, type Room } from "../types";
-import { $, avatarHtml, confetti, esc, logoHtml, sleep, toast } from "../ui";
+import { $, avatarHtml, confetti, entryHtml, esc, logoHtml, sleep, stampHtml, toast } from "../ui";
 
 const PAUSE_AFTER_ROAST_MS = 2200;
 
-/** Reveal drawings from last place to the winner, then show the leaderboard. */
+/** Reveal entries (drawings or answers) from last place to the winner, then show the leaderboard. */
 export const revealScreen =
   (code: string): ScreenFactory =>
   (el, room) => {
@@ -33,19 +34,19 @@ export const revealScreen =
     });
 
     const results = [...(room.results ?? [])].sort((a, b) => b.rank - a.rank);
+    const mode = MODES[room.roundMode ?? "draw"];
+    const noun = mode.noun.replace(/s$/, "");
     const audio = room.audioUrl ? new Audio(room.audioUrl) : undefined;
     audio?.play().catch(() => undefined);
 
     const showOne = async (r: Result, index: number) => {
       const winner = r.rank === 1;
-      step.textContent = `Drawing ${index + 1} of ${results.length}`;
+      step.textContent = `${noun[0].toUpperCase()}${noun.slice(1)} ${index + 1} of ${results.length}`;
       stage.innerHTML = `
         <div class="reveal-grid">
-          <figure class="frame">
-            ${r.imageUrl ? `<img src="${esc(r.imageUrl)}" alt="Drawing by ${esc(r.name)}" />` : `<div class="blank">?</div>`}
-            <figcaption>${avatarHtml(r.playerId, "sm")} ${esc(r.name)}</figcaption>
-          </figure>
+          ${entryHtml(r, `${avatarHtml(r.playerId, "sm")} ${esc(r.name)}`)}
           <div class="stack">
+            <div class="card prompt-recap"><span class="prompt-label">${esc(mode.instruction)}</span>${esc(room.prompt ?? "")}</div>
             <div class="rank-row">
               <div class="rank-label">${winner ? "🏆 WINNER" : `#${r.rank}`}</div>
               <div data-stamp></div>
@@ -55,7 +56,7 @@ export const revealScreen =
         </div>`;
       await aiSay(stage, r.roast, 32);
       if (skipped) return;
-      $(stage, "[data-stamp]").innerHTML = `<span class="stamp ${r.score >= 7 ? "good" : ""}">${r.score}/10</span>`;
+      $(stage, "[data-stamp]").innerHTML = stampHtml(r);
       if (winner) confetti();
       await sleep(winner ? PAUSE_AFTER_ROAST_MS * 1.5 : PAUSE_AFTER_ROAST_MS);
     };
@@ -112,7 +113,7 @@ export const revealScreen =
     (async () => {
       if (!results.length) {
         stage.innerHTML = `<div class="judging-stage">${aiHtml("ai-lg")}</div>`;
-        await aiSay(stage, "Nobody drew anything. Cowards. All of you.");
+        await aiSay(stage, `No ${mode.noun}. Nothing. Cowards, all of you.`);
         await sleep(PAUSE_AFTER_ROAST_MS);
       }
       for (const [i, r] of results.entries()) {

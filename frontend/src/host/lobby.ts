@@ -1,13 +1,15 @@
 import QRCode from "qrcode";
 import { aiHtml, aiLoop, LOBBY_LINES } from "../ai";
 import { api, MOCK } from "../api";
-import { DEFAULT_ROUNDS, joinUrl, MAX_ROUNDS, TAGLINE } from "../config";
+import { DEFAULT_MODE, DEFAULT_ROUNDS, joinUrl, MAX_ROUNDS, MODE_SETTINGS, settingInfo, TAGLINE } from "../config";
 import { mockAddBot } from "../mock";
 import type { ScreenFactory } from "../router";
-import type { Room } from "../types";
+import type { ModeSetting, Room } from "../types";
 import { $, esc, logoHtml, syncChips, toast } from "../ui";
 
+// Remember the host's choices across games in this tab.
 const ROUNDS_KEY = "host:rounds";
+const MODE_KEY = "host:mode";
 
 export const lobbyScreen =
   (code: string): ScreenFactory =>
@@ -30,16 +32,32 @@ export const lobbyScreen =
         <p class="empty-hint">Scan the QR code with your phone to join.</p>
         <div class="chips" data-players></div>
       </section>
-      <footer class="host-foot">
-        ${aiHtml("ai-lg")}
-        <div class="row">
-          ${MOCK ? `<button class="btn btn-ghost" data-bot>+ Add bot</button>` : ""}
+      <section class="card settings">
+        <div class="settings-row">
+          <span class="lbl">Game mode</span>
+          <div class="mode-picker" role="radiogroup" aria-label="Game mode">
+            ${MODE_SETTINGS.map((m) => {
+              const info = settingInfo(m);
+              return `<button type="button" class="mode-btn" role="radio" data-mode="${m}">
+                <span class="mode-emoji" aria-hidden="true">${info.emoji}</span>${esc(info.name)}
+              </button>`;
+            }).join("")}
+          </div>
+        </div>
+        <p class="mode-blurb" aria-live="polite"></p>
+        <div class="settings-row">
+          <span class="lbl">Rounds</span>
           <div class="stepper" role="group" aria-label="Number of rounds">
-            <span class="stepper-label">Rounds</span>
             <button type="button" class="stepper-btn" data-dec aria-label="Fewer rounds">−</button>
             <output class="stepper-value" aria-live="polite"></output>
             <button type="button" class="stepper-btn" data-inc aria-label="More rounds">+</button>
           </div>
+        </div>
+      </section>
+      <footer class="host-foot">
+        ${aiHtml("ai-lg")}
+        <div class="row">
+          ${MOCK ? `<button class="btn btn-ghost" data-bot>+ Add bot</button>` : ""}
           <button class="btn btn-big" data-start>Start game ▶</button>
         </div>
       </footer>
@@ -50,7 +68,26 @@ export const lobbyScreen =
       .catch(() => toast("Couldn't draw the QR code"));
     aiLoop(el, LOBBY_LINES, 4000);
 
-    // Remember the host's choice across games in this tab.
+    // ---- Game mode ----
+    const savedMode = sessionStorage.getItem(MODE_KEY) as ModeSetting | null;
+    let mode: ModeSetting = savedMode && MODE_SETTINGS.includes(savedMode) ? savedMode : room.mode || DEFAULT_MODE;
+    const setMode = (m: ModeSetting) => {
+      mode = m;
+      el.querySelectorAll<HTMLElement>("[data-mode]").forEach((b) => {
+        const on = b.dataset.mode === m;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-checked", String(on));
+      });
+      $(el, ".mode-blurb").textContent = settingInfo(m).blurb;
+      sessionStorage.setItem(MODE_KEY, m);
+    };
+    setMode(mode);
+    $(el, ".mode-picker").addEventListener("click", (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-mode]");
+      if (btn) setMode(btn.dataset.mode as ModeSetting);
+    });
+
+    // ---- Rounds ----
     let rounds = Number(sessionStorage.getItem(ROUNDS_KEY)) || room.totalRounds || DEFAULT_ROUNDS;
     const value = $(el, ".stepper-value");
     const dec = $<HTMLButtonElement>(el, "[data-dec]");
@@ -70,7 +107,7 @@ export const lobbyScreen =
     start.addEventListener("click", async () => {
       start.disabled = true;
       try {
-        await api.startRound(code, rounds);
+        await api.startRound(code, { totalRounds: rounds, mode });
       } catch (err) {
         toast(err instanceof Error ? err.message : "Couldn't start the round");
         start.disabled = false;

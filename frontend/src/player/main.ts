@@ -5,12 +5,12 @@ import type { Room } from "../types";
 import { toast } from "../ui";
 import { showJoin } from "./join";
 import {
-  drawingScreen,
   goneScreen,
   judgingScreen,
   lobbyScreen,
   type PlayerCtx,
   resultsScreen,
+  roundScreen,
   sentScreen,
 } from "./screens";
 
@@ -45,7 +45,7 @@ function play(code: string, playerId: string) {
       case "drawing":
         return player.submitted || ctx.submitted.has(room.round)
           ? [`sent:${room.round}`, sentScreen(ctx)]
-          : [`draw:${room.round}`, drawingScreen(ctx)];
+          : [`round:${room.round}`, roundScreen(ctx)];
       case "judging":
         return [`judging:${room.round}`, judgingScreen()];
       case "results":

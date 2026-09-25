@@ -2,5 +2,5 @@ from shared.http import ok
 
 
 def handler(event, context):
-    # TODO person 3: generate a 4-letter code, put META {state: "lobby", round: 0, totalRounds: 3}.
+    # TODO person 3: generate a 4-letter code, put META {state: "lobby", round: 0, totalRounds: 3, mode: "mixed"}.
     return ok({"code": "WXYZ"})

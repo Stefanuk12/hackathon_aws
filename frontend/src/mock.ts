@@ -9,8 +9,8 @@
  * never write on reads, so they can't overwrite newer state from another tab.
  */
 import type { Api } from "./api";
-import { DEFAULT_ROUNDS, MAX_ROUNDS } from "./config";
-import type { Result, Room, RoomState } from "./types";
+import { DEFAULT_MODE, DEFAULT_ROUNDS, MAX_ROUNDS, TEXT_LIMIT } from "./config";
+import type { GameMode, ModeSetting, Result, Room, RoomState } from "./types";
 import { pick, sleep } from "./ui";
 
 const ROUND_MS = Number(new URLSearchParams(location.search).get("seconds") ?? 60) * 1000;
@@ -18,36 +18,97 @@ const JUDGE_MS = 4000;
 const GRACE_MS = 5000;
 const IS_HOST = location.pathname.includes("host");
 
-const PROMPTS = [
-  "A penguin running a lemonade stand",
-  "A cat who just got fired",
-  "Dracula at the dentist",
-  "A snowman on a beach holiday",
-  "A dog driving a bus",
-  "The world's worst superhero",
-  "A giraffe stuck in a lift",
-  "A pizza with feelings",
-  "Shakespeare playing video games",
-  "A shark afraid of water",
-  "Grandma on a skateboard",
-  "A robot falling in love with a toaster",
-  "A haunted washing machine",
-  "A wizard who lost his hat",
-  "An octopus doing the washing up",
-];
+/** Mixed mode cycles through these (same rule the backend follows). */
+const MIXED_ORDER: GameMode[] = ["draw", "survive", "wit"];
 
-const ROASTS = [
-  "{name}, I've seen better art from a Roomba with a pen taped to it.",
-  "{name} clearly heard the prompt and chose violence.",
-  "Bold of you, {name}, to call this a drawing.",
-  "{name}, this is either genius or a cry for help. I'm leaning towards help.",
-  "I recognised it instantly, {name}. Unfortunately.",
-  "{name}, my training data did not prepare me for this.",
-  "Honestly, {name}? Not bad. Don't let it go to your head.",
-  "{name}, I will be showing this to other AIs. As a warning.",
-  "Every line is a choice, {name}. You made so many wrong ones.",
-  "{name} has the confidence of a Picasso and the skill of a potato.",
-];
+const PROMPTS: Record<GameMode, string[]> = {
+  draw: [
+    "A penguin running a lemonade stand",
+    "A cat who just got fired",
+    "Dracula at the dentist",
+    "A snowman on a beach holiday",
+    "A dog driving a bus",
+    "The world's worst superhero",
+    "A giraffe stuck in a lift",
+    "A pizza with feelings",
+    "A shark afraid of water",
+    "Grandma on a skateboard",
+    "A robot falling in love with a toaster",
+    "A haunted washing machine",
+    "An octopus doing the washing up",
+  ],
+  survive: [
+    "You wake up in a lift with a hungry bear.",
+    "The floor is lava and you're wearing socks.",
+    "You're locked in IKEA after closing time. The lights go out.",
+    "Zombies burst into your 9am lecture.",
+    "You accidentally deleted the production database. Your boss is walking over.",
+    "A gang of seagulls has surrounded you and your chips.",
+    "You're on a sinking ship. All you have is a toaster.",
+    "The Wi-Fi dies five minutes before your hackathon demo.",
+    "A goose has declared war on you personally.",
+  ],
+  wit: [
+    "The worst thing to say in a job interview",
+    "A terrible name for a pet goldfish",
+    "What the AI really does when nobody's watching",
+    "The secret ingredient in the canteen food",
+    "The most useless superpower",
+    "A rejected AWS service name",
+    "What your houseplant secretly thinks of you",
+    "The real reason the lecture was cancelled",
+    "A bad slogan for a dentist",
+  ],
+};
+
+const ROASTS: Record<GameMode, string[]> = {
+  draw: [
+    "{name}, I've seen better art from a Roomba with a pen taped to it.",
+    "{name} clearly heard the prompt and chose violence.",
+    "Bold of you, {name}, to call this a drawing.",
+    "{name}, this is either genius or a cry for help. I'm leaning towards help.",
+    "I recognised it instantly, {name}. Unfortunately.",
+    "{name}, my training data did not prepare me for this.",
+    "Honestly, {name}? Not bad. Don't let it go to your head.",
+    "{name}, I will be showing this to other AIs. As a warning.",
+  ],
+  wit: [
+    "{name}, that's the funniest thing I've read today. Low bar, but still.",
+    "I've processed billions of jokes, {name}. This was one of them.",
+    "{name}, I laughed. Internally. Silently. Barely.",
+    "Comedy is subjective, {name}. And subjectively, no.",
+    "{name}, I'm adding this to my training data. As a warning.",
+    "Genuinely clever, {name}. I'm annoyed.",
+  ],
+  survive: [],
+};
+
+const SURVIVE_LINES = {
+  lived: [
+    "{name} survived. Barely. I'm as surprised as you are.",
+    "Against all odds, {name} lives. The universe is confused.",
+    "{name}'s plan was ridiculous. It also worked. Fine.",
+  ],
+  died: [
+    "{name} died instantly. It didn't even need to try.",
+    "{name}'s plan lasted four seconds. Three of them were screaming.",
+    "Bold strategy, {name}. Fatal, but bold.",
+    "{name} is now a cautionary tale.",
+  ],
+};
+
+const BOT_ANSWERS: Record<Exclude<GameMode, "draw">, string[]> = {
+  survive: [
+    "I befriend it with snacks.",
+    "Run. Just run.",
+    "I call my mum.",
+    "I hide behind someone slower.",
+    "I deploy a Lambda function to fight it.",
+    "I simply refuse to panic.",
+    "Play dead. Commit to the role.",
+  ],
+  wit: ["Gary", "Cheese, probably", "Blockchain", "My landlord", "It's always DNS", "Vibes", "Bold of you to ask"],
+};
 
 const BOT_NAMES = ["RoboBob", "Doodlebug", "Sir Scribbles", "Picasso.exe", "Crayon Eater", "Captain Blob"];
 
@@ -59,17 +120,25 @@ interface MockPlayer {
   botSubmitAt?: number;
 }
 
+/** A drawing (image key) or a typed answer. */
+interface Entry {
+  key?: string;
+  text?: string;
+}
+
 interface MockRoom {
   code: string;
   state: RoomState;
   round: number;
   totalRounds: number;
+  mode: ModeSetting;
+  roundMode?: GameMode;
   prompt?: string;
   endsAt?: number;
   judgingAt?: number;
   players: MockPlayer[];
-  entries: Record<number, Record<string, string>>; // round -> playerId -> image key
-  results?: Omit<Result, "name" | "imageUrl">[];
+  entries: Record<number, Record<string, Entry>>; // round -> playerId -> entry
+  results?: Omit<Result, "name" | "imageUrl" | "text">[];
   usedPrompts: string[];
 }
 
@@ -90,6 +159,12 @@ function save(room: MockRoom) {
 
 const drawingKey = (room: MockRoom, playerId: string) => `rooms/${room.code}/${room.round}/${playerId}.jpg`;
 const nameOf = (room: MockRoom, playerId: string) => room.players.find((p) => p.playerId === playerId)?.name ?? "?";
+const roastFor = (lines: string[], name: string) => pick(lines).replace("{name}", name);
+
+function botEntry(room: MockRoom, playerId: string): Entry {
+  const mode = room.roundMode ?? "draw";
+  return mode === "draw" ? { key: drawingKey(room, playerId) } : { text: pick(BOT_ANSWERS[mode]) };
+}
 
 /** The "server-side" state transitions, applied lazily on every read. */
 function tick(room: MockRoom) {
@@ -97,7 +172,7 @@ function tick(room: MockRoom) {
   if (room.state === "drawing") {
     const entries = (room.entries[room.round] ??= {});
     for (const p of room.players) {
-      if (p.bot && (p.botSubmitAt ?? Infinity) <= now && !entries[p.playerId]) entries[p.playerId] = drawingKey(room, p.playerId);
+      if (p.bot && (p.botSubmitAt ?? Infinity) <= now && !entries[p.playerId]) entries[p.playerId] = botEntry(room, p.playerId);
     }
     const allIn = room.players.length > 0 && room.players.every((p) => entries[p.playerId]);
     if (allIn || now > (room.endsAt ?? 0) + GRACE_MS) startJudging(room);
@@ -112,14 +187,18 @@ function startJudging(room: MockRoom) {
 }
 
 function finishJudging(room: MockRoom) {
+  const mode = room.roundMode ?? "draw";
   const scored = Object.keys(room.entries[room.round] ?? {})
     .map((playerId) => ({ playerId, score: 1 + Math.floor(Math.random() * 10) }))
     .sort((a, b) => b.score - a.score);
-  room.results = scored.map((s, i) => ({
-    ...s,
-    rank: i + 1,
-    roast: pick(ROASTS).replace("{name}", nameOf(room, s.playerId)),
-  }));
+  room.results = scored.map((s, i) => {
+    const name = nameOf(room, s.playerId);
+    if (mode === "survive") {
+      const survived = s.score >= 6;
+      return { ...s, rank: i + 1, survived, roast: roastFor(SURVIVE_LINES[survived ? "lived" : "died"], name) };
+    }
+    return { ...s, rank: i + 1, roast: roastFor(ROASTS[mode], name) };
+  });
   for (const s of scored) {
     const player = room.players.find((p) => p.playerId === s.playerId);
     if (player) player.score += s.score;
@@ -134,16 +213,21 @@ function view(room: MockRoom): Room {
     state: room.state,
     round: room.round,
     totalRounds: room.totalRounds,
+    mode: room.mode,
+    roundMode: room.roundMode,
     prompt: room.prompt,
     endsAt: room.endsAt,
     players: room.players.map(({ playerId, name, score }) => ({ playerId, name, score, submitted: !!entries[playerId] })),
     results:
       room.state === "results"
-        ? room.results?.map((r) => ({
-            ...r,
-            name: nameOf(room, r.playerId),
-            imageUrl: localStorage.getItem(imageKey(entries[r.playerId])) ?? "",
-          }))
+        ? room.results?.map((r) => {
+            const entry = entries[r.playerId] ?? {};
+            return {
+              ...r,
+              name: nameOf(room, r.playerId),
+              ...(entry.key ? { imageUrl: localStorage.getItem(imageKey(entry.key)) ?? "" } : { text: entry.text ?? "" }),
+            };
+          })
         : undefined,
     audioUrl: null,
   };
@@ -171,7 +255,11 @@ function scribble() {
 
 /** Drop the current round's images; localStorage only holds ~5 MB. */
 function freeImages(room: MockRoom) {
-  for (const key of Object.values(room.entries[room.round] ?? {})) localStorage.removeItem(imageKey(key));
+  for (const entry of Object.values(room.entries[room.round] ?? {})) {
+    if (entry.key) localStorage.removeItem(imageKey(entry.key));
+  }
+  // Bot drawings are stored at round start, before the bot "submits".
+  for (const p of room.players) if (p.bot) localStorage.removeItem(imageKey(drawingKey(room, p.playerId)));
 }
 
 const blobToDataUrl = (blob: Blob) =>
@@ -187,7 +275,16 @@ export const mock: Api = {
     await latency();
     const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
     const code = Array.from({ length: 4 }, () => pick([...letters])).join("");
-    save({ code, state: "lobby", round: 0, totalRounds: DEFAULT_ROUNDS, players: [], entries: {}, usedPrompts: [] });
+    save({
+      code,
+      state: "lobby",
+      round: 0,
+      totalRounds: DEFAULT_ROUNDS,
+      mode: DEFAULT_MODE,
+      players: [],
+      entries: {},
+      usedPrompts: [],
+    });
     return { code };
   },
 
@@ -210,24 +307,29 @@ export const mock: Api = {
     return view(room);
   },
 
-  async startRound(code, totalRounds) {
+  async startRound(code, settings) {
     await latency();
     const room = load(code);
     if (room.state === "drawing" || room.state === "judging") throw new Error("Round already in progress");
-    if (room.state === "lobby" && totalRounds) room.totalRounds = Math.min(MAX_ROUNDS, Math.max(1, Math.round(totalRounds)));
+    if (room.state === "lobby") {
+      if (settings?.totalRounds) room.totalRounds = Math.min(MAX_ROUNDS, Math.max(1, Math.round(settings.totalRounds)));
+      if (settings?.mode) room.mode = settings.mode;
+    }
     if (room.round >= room.totalRounds) throw new Error("Game over! Press Play again.");
     freeImages(room);
 
-    const fresh = PROMPTS.filter((p) => !room.usedPrompts.includes(p));
-    room.prompt = pick(fresh.length ? fresh : PROMPTS);
-    room.usedPrompts.push(room.prompt);
     room.round += 1;
+    room.roundMode = room.mode === "mixed" ? MIXED_ORDER[(room.round - 1) % MIXED_ORDER.length] : room.mode;
+    const options = PROMPTS[room.roundMode];
+    const fresh = options.filter((p) => !room.usedPrompts.includes(p));
+    room.prompt = pick(fresh.length ? fresh : options);
+    room.usedPrompts.push(room.prompt);
     room.state = "drawing";
     room.endsAt = Date.now() + ROUND_MS;
     room.results = undefined;
     for (const p of room.players.filter((p) => p.bot)) {
       p.botSubmitAt = Date.now() + 3000 + Math.random() * ROUND_MS * 0.6;
-      localStorage.setItem(imageKey(drawingKey(room, p.playerId)), scribble());
+      if (room.roundMode === "draw") localStorage.setItem(imageKey(drawingKey(room, p.playerId)), scribble());
     }
     save(room);
     return { round: room.round, prompt: room.prompt, endsAt: room.endsAt };
@@ -244,11 +346,12 @@ export const mock: Api = {
     localStorage.setItem(imageKey(url.replace("mock://", "")), await blobToDataUrl(image));
   },
 
-  async submit(code, playerId, key) {
+  async submit(code, playerId, submission) {
     await latency();
     const room = load(code);
     if (room.state !== "drawing") throw new Error("Too late! The round is over.");
-    (room.entries[room.round] ??= {})[playerId] = key;
+    (room.entries[room.round] ??= {})[playerId] =
+      "key" in submission ? { key: submission.key } : { text: submission.text.slice(0, TEXT_LIMIT) };
     save(room);
     return { ok: true };
   },
@@ -264,7 +367,15 @@ export const mock: Api = {
     await latency();
     const room = load(code);
     freeImages(room);
-    Object.assign(room, { state: "lobby", round: 0, entries: {}, prompt: undefined, endsAt: undefined, results: undefined });
+    Object.assign(room, {
+      state: "lobby",
+      round: 0,
+      entries: {},
+      roundMode: undefined,
+      prompt: undefined,
+      endsAt: undefined,
+      results: undefined,
+    });
     for (const p of room.players) p.score = 0;
     save(room);
     return { ok: true };

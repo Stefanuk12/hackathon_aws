@@ -737,10 +737,11 @@ h2 {
 
 .host-lobby {
   grid-template-columns: minmax(260px, 360px) 1fr;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr auto auto;
   grid-template-areas:
     "head head"
     "join players"
+    "join settings"
     "foot foot";
 }
 
@@ -821,7 +822,7 @@ h2 {
   min-height: 2.2em;
 }
 
-.host-drawing {
+.host-round {
   grid-template-rows: auto auto auto auto 1fr auto;
   align-content: stretch;
 }
@@ -964,23 +965,174 @@ h2 {
   text-align: right;
 }
 
+/* ---------- Game settings (host lobby) ---------- */
+
+.settings {
+  grid-area: settings;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  align-self: end;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.settings-row > .lbl {
+  margin: 0;
+  min-width: 6.5rem;
+}
+
+.mode-picker {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.6rem;
+}
+
+.mode-btn {
+  font: inherit;
+  font-weight: 700;
+  font-size: 1.05rem;
+  padding: 0.55rem 0.6rem;
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 4px 0 var(--ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+
+.mode-btn.active {
+  background: var(--cyan);
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 var(--ink);
+}
+
+.mode-emoji {
+  font-size: 1.3rem;
+}
+
+.mode-blurb {
+  color: #4a4166;
+  font-weight: 500;
+  min-height: 1.3em;
+}
+
+.mode-pill {
+  background: var(--yellow);
+}
+
+/* ---------- Text answers ---------- */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.answer-box {
+  position: relative;
+  display: block;
+}
+
+.field.answer {
+  resize: none;
+  font-size: 1.35rem;
+  line-height: 1.35;
+  min-height: 12rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding-bottom: 2.2rem;
+}
+
+.char-count {
+  position: absolute;
+  right: 1rem;
+  bottom: 0.7rem;
+  color: #6b6385;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.char-count.low {
+  color: var(--ai);
+}
+
+.answer-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 14rem;
+  transform: rotate(-1.5deg);
+}
+
+.answer-card blockquote {
+  margin: 0.4rem 0.4rem 0.8rem;
+  color: var(--ink);
+  font-size: clamp(1.5rem, 3vw, 2.6rem);
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.answer-card blockquote::before {
+  content: "“";
+  color: var(--pink);
+}
+
+.answer-card blockquote::after {
+  content: "”";
+  color: var(--pink);
+}
+
+.muted-ink {
+  color: #8a82a6;
+  font-style: italic;
+}
+
+.player-result .answer-card blockquote {
+  font-size: 1.4rem;
+}
+
+.prompt-recap {
+  font-weight: 700;
+  font-size: 1.2rem;
+  padding: 0.7rem 1rem;
+  background: var(--yellow);
+  transform: rotate(-1deg);
+}
+
+.prompt-huge .prompt-label {
+  font-size: 1rem;
+  margin-bottom: 0.3rem;
+}
+
 /* ---------- Rounds stepper ---------- */
 
 .stepper {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.35rem 0.5rem 0.35rem 1rem;
-  background: var(--paper);
+  padding: 0.3rem;
+  background: #fff;
   color: var(--ink);
   border: 3px solid var(--ink);
   border-radius: 14px;
-  box-shadow: 0 5px 0 var(--ink);
-}
-
-.stepper-label {
-  font-weight: 700;
-  margin-right: 0.25rem;
+  box-shadow: 0 4px 0 var(--ink);
 }
 
 .stepper-btn {
@@ -1058,7 +1210,12 @@ h2 {
       "head"
       "join"
       "players"
+      "settings"
       "foot";
+  }
+
+  .mode-picker {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .host-foot,

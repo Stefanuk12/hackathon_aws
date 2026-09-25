@@ -1,5 +1,5 @@
 import { GAME_NAME, GAME_NAME_ACCENT } from "./config";
-import type { Player } from "./types";
+import type { Player, Result } from "./types";
 
 export const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -113,4 +113,28 @@ export function syncChips(container: HTMLElement, players: Player[], stateOf?: (
     }
     chip.className = `chip ${stateOf?.(p) ?? ""}`;
   }
+}
+
+// ---------- Submissions ----------
+
+/** A player's entry: framed drawing (Draw) or quote card (Survive / Quick Wit). */
+export function entryHtml(r: Result, caption = "") {
+  const cap = caption ? `<figcaption>${caption}</figcaption>` : "";
+  if (r.text !== undefined) {
+    return `<figure class="frame answer-card">
+      <blockquote>${r.text ? esc(r.text) : `<span class="muted-ink">…silence…</span>`}</blockquote>${cap}
+    </figure>`;
+  }
+  const img = r.imageUrl
+    ? `<img src="${esc(r.imageUrl)}" alt="Drawing by ${esc(r.name)}" />`
+    : `<div class="blank">?</div>`;
+  return `<figure class="frame">${img}${cap}</figure>`;
+}
+
+/** The stamp: score, plus SURVIVED / DEAD in Survive rounds. */
+export function stampHtml(r: Result) {
+  if (r.survived !== undefined) {
+    return `<span class="stamp ${r.survived ? "good" : ""}">${r.survived ? "SURVIVED" : "💀 DEAD"} · ${r.score}/10</span>`;
+  }
+  return `<span class="stamp ${r.score >= 7 ? "good" : ""}">${r.score}/10</span>`;
 }

@@ -1,15 +1,26 @@
 # Amacide — AWS North x Northumbria Hackathon
 
-**Amacide** is a party game in the style of Gartic Phone. Bedrock writes the prompt, everyone draws it on their phone, and the AI ranks the drawings against the prompt. A game-show host voice (Polly) reads out the results and a roast of each drawing.
+**Amacide** is a party game in the style of Gartic Phone and Death by AI. Bedrock writes the prompt, everyone answers it on their phone, and the AI ranks the answers against the prompt. A game-show host voice (Polly) reads out the results and a roast of each answer.
 
 **Categories:** Traditional (party game), Digital worlds, Gamification
+
+## Game modes
+
+The host picks a mode in the lobby, along with the number of rounds.
+
+| Mode | Prompt example | Players | The AI judges |
+|---|---|---|---|
+| 🎨 **Draw** | "A penguin running a lemonade stand" | draw it | recognisability, 0–10 |
+| ☠️ **Survive** (Death by AI style) | "You wake up in a lift with a hungry bear." | type how they'd survive | **lives or dies**, plus a score |
+| 💬 **Quick Wit** (Quiplash style) | "A rejected AWS service name" | type the funniest answer | funniness, 0–10 |
+| 🔀 **Mixed** (default) | Draw → Survive → Quick Wit, repeating | | |
 
 ## Game loop
 
 1. The host screen shows a QR code and room code. Players join on their phones.
 2. Bedrock generates a prompt (themed, scaled by difficulty, no repeats).
-3. Everyone draws before the timer runs out.
-4. Bedrock vision ranks **all drawings in one call**. It scores recognisability, not art quality, and penalises written words.
+3. Everyone draws or types an answer before the timer runs out.
+4. Bedrock ranks **all entries in one call**: vision for drawings (scoring recognisability, not art quality, and penalising written words), text for Survive and Quick Wit.
 5. The reveal shows each drawing's rank, score and one-line roast, read aloud by Polly.
 
 **Stretch goals** (only once the core loop works end to end):
@@ -58,7 +69,7 @@ Region: **eu-west-2 (London)**. Everything is serverless and defined in one SAM 
 
 | Service | What we use it for | Owner |
 |---|---|---|
-| **Amazon Bedrock**: Claude | Writes each round's prompt. Judges all drawings in one vision call (rank, score, roast) | 4 |
+| **Amazon Bedrock**: Claude | Writes each round's prompt for its mode. Judges all entries in one call (vision for drawings, text for Survive and Quick Wit) | 4 |
 | **AWS Lambda** (Python 3.12, arm64) | API handlers and the steps of the judging pipeline | 3, 4 |
 | **Amazon API Gateway** (HTTP API) | REST endpoints for rooms, joining, rounds, uploads | 3 |
 | **Amazon DynamoDB** | Single-table game state: rooms, players, drawings, scores | 3 |
@@ -97,9 +108,9 @@ Region: **eu-west-2 (London)**. Everything is serverless and defined in one SAM 
 
 | PK | SK | Attributes |
 |---|---|---|
-| `ROOM#<code>` | `META` | `state` (lobby \| drawing \| judging \| results), `round`, `totalRounds`, `prompt`, `endsAt` |
+| `ROOM#<code>` | `META` | `state` (lobby \| drawing \| judging \| results), `round`, `totalRounds`, `mode`, `roundMode`, `prompt`, `endsAt` |
 | `ROOM#<code>` | `PLAYER#<id>` | `name`, `score` |
-| `ROOM#<code>` | `ROUND#<n>#<playerId>` | `s3Key`, `rank`, `score`, `roast` |
+| `ROOM#<code>` | `ROUND#<n>#<playerId>` | `s3Key` (draw) or `text` (survive/wit), `rank`, `score`, `roast`, `survived` (survive) |
 
 ### HTTP API, realtime events and response shapes
 
@@ -109,9 +120,9 @@ Region: **eu-west-2 (London)**. Everything is serverless and defined in one SAM 
 POST /rooms                        → {code}
 POST /rooms/{code}/join            {name} → {playerId}
 GET  /rooms/{code}                 → full room state (also the polling fallback)
-POST /rooms/{code}/start           {totalRounds?} → {round, prompt, endsAt}   (409 after the last round)
+POST /rooms/{code}/start           {totalRounds?, mode?} → {round, prompt, endsAt}   (409 after the last round)
 POST /rooms/{code}/upload-url      {playerId} → {url, key}
-POST /rooms/{code}/submit          {playerId, key}
+POST /rooms/{code}/submit          {playerId, key} (draw) or {playerId, text} (survive/wit)
 POST /rooms/{code}/end             host calls this when the timer hits 0
 POST /rooms/{code}/reset           "Play again": back to lobby, scores to 0
 ```
@@ -126,11 +137,11 @@ frontend/         1 + 2    Vite + TypeScript. index.html = phone, host.html = bi
   src/api.ts               fetch wrapper; VITE_MOCK=true swaps in src/mock.ts (fake backend)
   src/realtime.ts          polling now, AppSync Events later
   src/player/     1        canvas, upload, screens
-  src/host/       2        lobby (+ rounds picker), drawing, judging, reveal, leaderboard
+  src/host/       2        lobby (mode + rounds), round, judging, reveal, leaderboard
 backend/          3        SAM stack (template.yaml), Python 3.12 Lambdas
   src/shared/     3        DynamoDB keys, HTTP helpers, publish to AppSync Events
   src/rooms/      3        API handlers + save_results (last step of judging)
-  src/ai/         4        prompt_gen, judge, host_voice, ai_player (stretch), prompts/*.txt
+  src/ai/         4        prompt_gen + judge per mode, host_voice, ai_player (stretch), prompts/*.txt
   statemachine/   4        judge_round.asl.json: Judge → HostVoice → SaveResults
   scripts/        4        test_judge.py: run the judge locally on samples/
 samples/          4        test drawings (.jpg) for tuning the judge

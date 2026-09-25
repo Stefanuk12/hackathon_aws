@@ -3,6 +3,8 @@
   "state": "results",
   "round": 1,
   "totalRounds": 3,
+  "mode": "mixed",
+  "roundMode": "draw",
   "prompt": "A penguin running a lemonade stand",
   "endsAt": 1790000000000,
   "players": [

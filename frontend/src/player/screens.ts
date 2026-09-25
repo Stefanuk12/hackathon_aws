@@ -1,7 +1,9 @@
 import { aiHtml, aiLoop, aiSay, JUDGING_LINES, WAITING_LINES } from "../ai";
+import { api } from "../api";
+import { MODES, TEXT_LIMIT } from "../config";
 import type { ScreenFactory } from "../router";
 import { isGameOver, type Room } from "../types";
-import { $, avatarHtml, confetti, countdown, esc, logoHtml, pick, syncChips, toast } from "../ui";
+import { $, avatarHtml, confetti, countdown, entryHtml, esc, logoHtml, pick, stampHtml, syncChips, toast } from "../ui";
 import { createPad } from "./canvas";
 import { submitDrawing } from "./upload";
 
@@ -41,18 +43,81 @@ export const lobbyScreen =
     return { update };
   };
 
-export const drawingScreen =
+function promptHeader(room: Room) {
+  const mode = MODES[room.roundMode ?? "draw"];
+  return `
+      <header class="draw-head">
+        <div class="prompt-card">
+          <span class="prompt-label">${mode.emoji} Round ${room.round}/${room.totalRounds} · ${esc(mode.instruction)}</span>
+          <strong>${esc(room.prompt ?? "")}</strong>
+        </div>
+        <div class="timer" aria-label="Seconds left"></div>
+      </header>`;
+}
+
+/** Draw rounds get the drawing pad; Survive / Quick Wit get a text box. */
+export const roundScreen =
+  (ctx: PlayerCtx): ScreenFactory =>
+  (el, room) =>
+    (room.roundMode ?? "draw") === "draw" ? drawingScreen(ctx)(el, room) : textScreen(ctx)(el, room);
+
+const textScreen =
+  (ctx: PlayerCtx): ScreenFactory =>
+  (el, room) => {
+    const mode = MODES[room.roundMode ?? "wit"];
+    el.innerHTML = `
+    <main class="screen draw-screen">
+      ${promptHeader(room)}
+      <label class="answer-box">
+        <span class="sr-only">Your answer</span>
+        <textarea class="field answer" maxlength="${TEXT_LIMIT}" rows="5"
+                  placeholder="${esc(mode.placeholder ?? "")}" autocomplete="off"></textarea>
+        <span class="char-count" aria-live="polite"></span>
+      </label>
+      <button class="btn btn-big btn-block btn-go">Send it ✉️</button>
+    </main>`;
+
+    const box = $<HTMLTextAreaElement>(el, "textarea");
+    const counter = $(el, ".char-count");
+    const button = $<HTMLButtonElement>(el, ".btn-go");
+    const updateCount = () => {
+      const left = TEXT_LIMIT - box.value.length;
+      counter.textContent = String(left);
+      counter.classList.toggle("low", left <= 20);
+    };
+    box.addEventListener("input", updateCount);
+    updateCount();
+    box.focus();
+
+    let sending = false;
+    const send = async () => {
+      if (sending || ctx.submitted.has(room.round)) return;
+      sending = true;
+      button.disabled = true;
+      button.textContent = "Sending…";
+      try {
+        await api.submit(ctx.code, ctx.playerId, { text: box.value.trim() });
+        ctx.submitted.add(room.round);
+        ctx.rerender();
+      } catch (err) {
+        sending = false;
+        button.disabled = false;
+        button.textContent = "Try again";
+        toast(err instanceof Error ? err.message : "Couldn't send your answer");
+      }
+    };
+    button.addEventListener("click", send);
+    // Time's up: send whatever has been typed. Silence gets judged too.
+    const stop = countdown($(el, ".timer"), room.endsAt ?? Date.now() + 60_000, send);
+    return { unmount: stop };
+  };
+
+const drawingScreen =
   (ctx: PlayerCtx): ScreenFactory =>
   (el, room) => {
     el.innerHTML = `
     <main class="screen draw-screen">
-      <header class="draw-head">
-        <div class="prompt-card">
-          <span class="prompt-label">Round ${room.round}/${room.totalRounds} · Draw this</span>
-          <strong>${esc(room.prompt ?? "")}</strong>
-        </div>
-        <div class="timer" aria-label="Seconds left"></div>
-      </header>
+      ${promptHeader(room)}
       <div class="pad"></div>
       <button class="btn btn-big btn-block btn-go">Done! Send it ✏️</button>
     </main>`;
@@ -109,13 +174,13 @@ export const sentScreen =
     return { update };
   };
 
-export const judgingScreen = (): ScreenFactory => (el) => {
+export const judgingScreen = (): ScreenFactory => (el, room) => {
   el.innerHTML = `
     <main class="screen center">
       ${aiHtml("ai-lg", "scanning")}
       <p class="tagline" style="text-align:center">👀 Look at the big screen!</p>
     </main>`;
-  aiLoop(el, JUDGING_LINES);
+  aiLoop(el, JUDGING_LINES[room.roundMode ?? "draw"]);
   return {};
 };
 
@@ -140,10 +205,8 @@ export const resultsScreen =
     <main class="screen center player-result">
       <section class="card stack center-text">
         <div class="result-rank">#${mine.rank} <small>of ${results.length}</small></div>
-        <figure class="frame">
-          ${mine.imageUrl ? `<img src="${esc(mine.imageUrl)}" alt="Your drawing" />` : `<div class="blank">?</div>`}
-        </figure>
-        <span class="stamp ${mine.score >= 7 ? "good" : ""}">${mine.score}/10</span>
+        ${entryHtml(mine)}
+        ${stampHtml(mine)}
         <p>Total: <strong>${total} pts</strong></p>
       </section>
       ${aiHtml()}
@@ -153,7 +216,7 @@ export const resultsScreen =
     <main class="screen center">
       <section class="card stack center-text">
         <div class="big-emoji">🙈</div>
-        <h2>No drawing, no score</h2>
+        <h2>Nothing sent, no score</h2>
         <p>Total: <strong>${total} pts</strong></p>
       </section>
       ${aiHtml()}
