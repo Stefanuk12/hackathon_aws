@@ -69,6 +69,9 @@ h2 {
     4px 4px 0 var(--ink),
     -2px -2px 0 var(--pink);
   transform: rotate(-3deg);
+  /* Tilt from the bottom-left so the left end never dips into the text below. */
+  transform-origin: left bottom;
+  padding-bottom: 0.08em;
 }
 
 .logo-ai {
