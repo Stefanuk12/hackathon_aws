@@ -3,23 +3,21 @@
 import os
 from pathlib import Path
 
-import boto3
+from ai.bedrock import bedrock, reply_text
 
-bedrock = boto3.client("bedrock-runtime")
 SYSTEM = (Path(__file__).parent / "prompts" / "prompt_gen.txt").read_text()
 
 
-def generate_prompt(previous_prompts=()):
-    # TODO person 4: tune temperature / theme; add difficulty if time allows.
+def generate_prompt(previous_prompts=(), theme=None):
+    """Returns one short, drawable prompt that isn't in previous_prompts."""
+    text = f"Previous prompts: {list(previous_prompts)}"
+    if theme:
+        text += f"\nTheme: {theme}"
+
     resp = bedrock.converse(
         modelId=os.environ["TEXT_MODEL_ID"],
         system=[{"text": SYSTEM}],
-        messages=[
-            {
-                "role": "user",
-                "content": [{"text": f"Previous prompts: {list(previous_prompts)}"}],
-            }
-        ],
-        inferenceConfig={"maxTokens": 50, "temperature": 1.0},
+        messages=[{"role": "user", "content": [{"text": text}]}],
+        inferenceConfig={"maxTokens": 1000},
     )
-    return resp["output"]["message"]["content"][0]["text"].strip().strip('"')
+    return reply_text(resp).strip().strip('"').strip()
