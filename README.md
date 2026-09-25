@@ -1,6 +1,6 @@
 # Amacide — AWS North x Northumbria Hackathon
 
-**Amacide** is a party game in the style of Gartic Phone and Death by AI. Bedrock writes the prompt, everyone answers it on their phone, and the AI ranks the answers against the prompt. A game-show host voice (Polly) reads out the results and a roast of each answer.
+**Amacide** is a party game in the style of Gartic Phone and Death by AI. Bedrock writes the prompt, everyone answers it on their phone, and the AI ranks the answers against the prompt. A game-show host voice reads out the results and a roast of each answer (Polly, falling back to the browser's own speech).
 
 **Categories:** Traditional (party game), Digital worlds, Gamification
 
@@ -25,7 +25,7 @@ The host picks a mode in the lobby, along with the number of rounds.
 2. Bedrock generates a prompt (themed, scaled by difficulty, no repeats).
 3. Everyone draws or types an answer before the timer runs out.
 4. Bedrock ranks **all entries in one call**: vision for drawings (scoring recognisability, not art quality, and penalising written words), text for Survive and Quick Wit.
-5. The reveal shows each drawing's rank, score and one-line roast, read aloud by Polly.
+5. The reveal shows each entry's rank, score and one-line roast, read aloud by the host voice.
 
 **Stretch goals** (only once the core loop works end to end):
 - **AI player:** Nova Canvas draws its own entry, which is mixed in anonymously and judged blind. Humans guess which drawing is the AI's.
@@ -112,11 +112,11 @@ Region: **eu-west-2 (London)**. Everything is serverless and defined in one SAM 
 
 | PK | SK | Attributes |
 |---|---|---|
-| `ROOM#<code>` | `META` | `state` (lobby \| drawing \| judging \| results), `round`, `totalRounds`, `prompt`, `endsAt`, `usedPrompts`, `audioUrl` |
-| `ROOM#<code>` | `PLAYER#<id>` | `name` |
-| `ROOM#<code>` | `ROUND#<n>#<playerId>` | `s3Key`, then after judging `rank`, `score`, `roast`, `imageUrl` |
+| `ROOM#<code>` | `META` | `state` (lobby \| theme \| drawing \| judging \| results), `round`, `totalRounds`, `mode`, `roundMode`, `elimination`, `reviveAfter`, `themeEvery`, `theme`, `themeEndsAt`, `prompt`, `endsAt`, `usedPrompts`, `usedThemes`, `outcome`, `audioUrl`, `hostScript`, `referenceUrls` |
+| `ROOM#<code>` | `PLAYER#<id>` | `name`, `alive`, `streak` (the last two matter only in elimination games) |
+| `ROOM#<code>` | `ROUND#<n>#<playerId>` | `s3Key` (draw) or `text` (survive/wit), then after judging `rank`, `score`, `points`, `roast`, plus `imageUrl`, `survived` or `ghost` where they apply |
 
-A player's total score isn't stored: `GET /rooms/{code}` sums their `ROUND#` scores. That makes saving results safe to retry, and "Play again" just deletes the `ROUND#` rows.
+A player's total score isn't stored: `GET /rooms/{code}` sums their `ROUND#` **points** (the score, or half of it while eliminated). That makes saving results safe to retry, and "Play again" just deletes the `ROUND#` rows.
 
 ### HTTP API, realtime events and response shapes
 
