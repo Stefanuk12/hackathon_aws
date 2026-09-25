@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: AI Gartic Phone - AWS North x Northumbria Hackathon
+Description: Amacide - AWS North x Northumbria Hackathon
 
 Parameters:
   TextModelId:
@@ -52,7 +52,7 @@ Resources:
   EventApi:
     Type: AWS::AppSync::Api
     Properties:
-      Name: ai-gartic-events
+      Name: amacide-events
       EventConfig:
         AuthProviders: [{ AuthType: API_KEY }]
         ConnectionAuthModes: [{ AuthType: API_KEY }]
@@ -153,6 +153,14 @@ Resources:
         - StepFunctionsExecutionPolicy: { StateMachineName: !GetAtt JudgeRoundStateMachine.Name }
       Events:
         Api: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/rooms/{code}/end" } }
+
+  ResetRoomFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: rooms/reset_room.handler
+      Policies: [{ DynamoDBCrudPolicy: { TableName: !Ref GameTable } }]
+      Events:
+        Api: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/rooms/{code}/reset" } }
 
   # ---------- Judging pipeline (Step Functions) ----------
   JudgeFunction:

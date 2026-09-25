@@ -2,7 +2,7 @@
 version = 0.1
 
 [default.global.parameters]
-stack_name = "ai-gartic"
+stack_name = "amacide"
 
 [default.deploy.parameters]
 region = "eu-west-2"

@@ -1,15 +1,60 @@
-import "../styles.css";
+import "../theme";
 import { api } from "../api";
 import { subscribe } from "../realtime";
-import { renderLobby } from "./lobby";
-import { renderReveal } from "./reveal";
+import { createRouter, type ScreenFactory } from "../router";
+import { toast } from "../ui";
+import { drawingScreen } from "./drawing";
+import { judgingScreen } from "./judging";
+import { lobbyScreen } from "./lobby";
+import { revealScreen } from "./reveal";
 
-// TODO person 2: drawing countdown (call api.endRound when it hits 0) and judging screens.
 const app = document.querySelector<HTMLDivElement>("#app")!;
+const CODE_KEY = "host:code";
 
-api.createRoom().then(({ code }) =>
-  subscribe(code, (room) => {
-    if (room.state === "results") renderReveal(app, room);
-    else renderLobby(app, room);
-  }),
-);
+/** Reuse this tab's room across reloads; ?new forces a fresh room. */
+async function getOrCreateRoom() {
+  const saved = new URLSearchParams(location.search).has("new") ? null : sessionStorage.getItem(CODE_KEY);
+  if (saved) {
+    try {
+      await api.getRoom(saved);
+      return saved;
+    } catch {
+      /* room is gone: make a new one */
+    }
+  }
+  const { code } = await api.createRoom();
+  sessionStorage.setItem(CODE_KEY, code);
+  return code;
+}
+
+async function main() {
+  const code = await getOrCreateRoom();
+  const route = createRouter(app, (room): [string, ScreenFactory] => {
+    switch (room.state) {
+      case "lobby":
+        return ["lobby", lobbyScreen(code)];
+      case "drawing":
+        return [`drawing:${room.round}`, drawingScreen(code)];
+      case "judging":
+        return [`judging:${room.round}`, judgingScreen()];
+      case "results":
+        return [`results:${room.round}`, revealScreen(code)];
+    }
+  });
+  let failures = 0;
+  subscribe(
+    code,
+    (room) => {
+      failures = 0;
+      route(room);
+    },
+    () => {
+      if (++failures === 3) toast("Lost connection to the game. Retrying…");
+    },
+  );
+}
+
+main().catch((err) => {
+  app.innerHTML = `<main class="screen center"><p class="error">Couldn't create a room. Is the API up?</p></main>`;
+  console.error(err);
+});

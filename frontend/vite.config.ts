@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  server: { host: true, fs: { allow: [".."] } }, // host: test on phones over LAN; allow: read ../contracts
+  server: { host: true }, // listen on the LAN so phones on the same wifi can join
   build: {
     rollupOptions: {
       input: {

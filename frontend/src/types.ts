@@ -17,20 +17,17 @@ export interface Result {
   imageUrl: string;
 }
 
+/** True once the last round's results are in: time for final scores, not "Next round". */
+export const isGameOver = (room: Room) => room.state === "results" && room.round >= room.totalRounds;
+
 export interface Room {
   code: string;
   state: RoomState;
   round: number;
+  totalRounds: number;
   prompt?: string;
   endsAt?: number;
   players: Player[];
   results?: Result[];
   audioUrl?: string | null;
 }
-
-export type GameEvent =
-  | { type: "player_joined"; playerId: string; name: string }
-  | { type: "round_started"; round: number; prompt: string; endsAt: number }
-  | { type: "submission_in"; playerId: string; submitted: number; total: number }
-  | { type: "judging"; round: number }
-  | { type: "results_ready"; round: number; results: Result[]; audioUrl: string | null };

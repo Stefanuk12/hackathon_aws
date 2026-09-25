@@ -1,34 +1,49 @@
-import createRoomFx from "../../contracts/fixtures/create_room.json";
-import joinRoomFx from "../../contracts/fixtures/join_room.json";
-import roomFx from "../../contracts/fixtures/room.json";
-import startRoundFx from "../../contracts/fixtures/start_round.json";
-import uploadUrlFx from "../../contracts/fixtures/upload_url.json";
+import { mock } from "./mock";
 import type { Room } from "./types";
 
-export const MOCK = import.meta.env.VITE_MOCK === "true";
-const API_URL = import.meta.env.VITE_API_URL as string;
+/** Mirrors contracts/api.md. */
+export interface Api {
+  createRoom(): Promise<{ code: string }>;
+  joinRoom(code: string, name: string): Promise<{ playerId: string }>;
+  getRoom(code: string): Promise<Room>;
+  /** totalRounds is only read when starting from the lobby. */
+  startRound(code: string, totalRounds?: number): Promise<{ round: number; prompt: string; endsAt: number }>;
+  uploadUrl(code: string, playerId: string): Promise<{ url: string; key: string }>;
+  putDrawing(url: string, image: Blob): Promise<void>;
+  submit(code: string, playerId: string, key: string): Promise<{ ok: boolean }>;
+  endRound(code: string): Promise<{ ok: boolean }>;
+  resetRoom(code: string): Promise<{ ok: boolean }>;
+}
 
-async function call<T>(method: string, path: string, body?: unknown, mock?: unknown): Promise<T> {
-  if (MOCK) return structuredClone(mock) as T;
+export const MOCK = import.meta.env.VITE_MOCK === "true";
+const API_URL = import.meta.env.VITE_API_URL ?? "";
+
+async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`${method} ${path} → ${res.status}`);
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail.error ?? `${method} ${path} failed (${res.status})`);
+  }
   return res.json();
 }
 
-export const api = {
-  createRoom: () => call<{ code: string }>("POST", "/rooms", undefined, createRoomFx),
-  joinRoom: (code: string, name: string) =>
-    call<{ playerId: string }>("POST", `/rooms/${code}/join`, { name }, joinRoomFx),
-  getRoom: (code: string) => call<Room>("GET", `/rooms/${code}`, undefined, roomFx),
-  startRound: (code: string) =>
-    call<{ round: number; prompt: string; endsAt: number }>("POST", `/rooms/${code}/start`, undefined, startRoundFx),
-  uploadUrl: (code: string, playerId: string) =>
-    call<{ url: string; key: string }>("POST", `/rooms/${code}/upload-url`, { playerId }, uploadUrlFx),
-  submit: (code: string, playerId: string, key: string) =>
-    call<{ ok: boolean }>("POST", `/rooms/${code}/submit`, { playerId, key }, { ok: true }),
-  endRound: (code: string) => call<{ ok: boolean }>("POST", `/rooms/${code}/end`, undefined, { ok: true }),
+const http: Api = {
+  createRoom: () => call("POST", "/rooms"),
+  joinRoom: (code, name) => call("POST", `/rooms/${code}/join`, { name }),
+  getRoom: (code) => call("GET", `/rooms/${code}`),
+  startRound: (code, totalRounds) => call("POST", `/rooms/${code}/start`, totalRounds ? { totalRounds } : {}),
+  uploadUrl: (code, playerId) => call("POST", `/rooms/${code}/upload-url`, { playerId }),
+  async putDrawing(url, image) {
+    const res = await fetch(url, { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: image });
+    if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+  },
+  submit: (code, playerId, key) => call("POST", `/rooms/${code}/submit`, { playerId, key }),
+  endRound: (code) => call("POST", `/rooms/${code}/end`),
+  resetRoom: (code) => call("POST", `/rooms/${code}/reset`),
 };
+
+export const api: Api = MOCK ? mock : http;

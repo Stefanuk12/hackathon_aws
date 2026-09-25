@@ -1,6 +1,6 @@
-# AI Gartic Phone — AWS North x Northumbria Hackathon
+# Amacide — AWS North x Northumbria Hackathon
 
-A party game in the style of Gartic Phone. Bedrock writes the prompt, everyone draws it on their phone, and the AI ranks the drawings against the prompt. A game-show host voice (Polly) reads out the results and a roast of each drawing.
+**Amacide** is a party game in the style of Gartic Phone. Bedrock writes the prompt, everyone draws it on their phone, and the AI ranks the drawings against the prompt. A game-show host voice (Polly) reads out the results and a roast of each drawing.
 
 **Categories:** Traditional (party game), Digital worlds, Gamification
 
@@ -97,7 +97,7 @@ Region: **eu-west-2 (London)**. Everything is serverless and defined in one SAM 
 
 | PK | SK | Attributes |
 |---|---|---|
-| `ROOM#<code>` | `META` | `state` (lobby \| drawing \| judging \| results), `round`, `prompt`, `endsAt` |
+| `ROOM#<code>` | `META` | `state` (lobby \| drawing \| judging \| results), `round`, `totalRounds`, `prompt`, `endsAt` |
 | `ROOM#<code>` | `PLAYER#<id>` | `name`, `score` |
 | `ROOM#<code>` | `ROUND#<n>#<playerId>` | `s3Key`, `rank`, `score`, `roast` |
 
@@ -109,10 +109,11 @@ Region: **eu-west-2 (London)**. Everything is serverless and defined in one SAM 
 POST /rooms                        → {code}
 POST /rooms/{code}/join            {name} → {playerId}
 GET  /rooms/{code}                 → full room state (also the polling fallback)
-POST /rooms/{code}/start           → {round, prompt, endsAt}
+POST /rooms/{code}/start           {totalRounds?} → {round, prompt, endsAt}   (409 after the last round)
 POST /rooms/{code}/upload-url      {playerId} → {url, key}
 POST /rooms/{code}/submit          {playerId, key}
 POST /rooms/{code}/end             host calls this when the timer hits 0
+POST /rooms/{code}/reset           "Play again": back to lobby, scores to 0
 ```
 
 ## Project structure
@@ -120,12 +121,12 @@ POST /rooms/{code}/end             host calls this when the timer hits 0
 Each folder has one owner, which keeps merge conflicts rare.
 
 ```
-contracts/        ALL      API + events contract, JSON fixtures (frontend mocks read these)
+contracts/        ALL      API + events contract, JSON example responses
 frontend/         1 + 2    Vite + TypeScript. index.html = phone, host.html = big screen
-  src/api.ts               fetch wrapper; VITE_MOCK=true serves contracts/fixtures
+  src/api.ts               fetch wrapper; VITE_MOCK=true swaps in src/mock.ts (fake backend)
   src/realtime.ts          polling now, AppSync Events later
   src/player/     1        canvas, upload, screens
-  src/host/       2        lobby, reveal
+  src/host/       2        lobby (+ rounds picker), drawing, judging, reveal, leaderboard
 backend/          3        SAM stack (template.yaml), Python 3.12 Lambdas
   src/shared/     3        DynamoDB keys, HTTP helpers, publish to AppSync Events
   src/rooms/      3        API handlers + save_results (last step of judging)
@@ -155,6 +156,16 @@ cd backend && TEXT_MODEL_ID=<id> AWS_REGION=eu-west-2 python scripts/test_judge.
 ```
 
 `npm run dev` listens on the LAN, so phones on the same wifi can open `http://<laptop-ip>:5173`.
+
+### Frontend mock mode
+
+`npm run dev:mock` runs the **whole game with no backend**. A fake server in [src/mock.ts](frontend/src/mock.ts) keeps game state in localStorage, so tabs in the same browser play together:
+
+1. Open `http://localhost:5173/host.html` (the big screen). Add `?seconds=20` for shorter rounds.
+2. Open the join link shown under the QR code in another tab, or on a phone via your LAN IP.
+3. Click **+ Add bot** to fill the room. Bots submit random scribbles, and the mock "AI" gives random scores and canned roasts.
+
+UI copy and the game name live in [src/config.ts](frontend/src/config.ts) and [src/ai.ts](frontend/src/ai.ts).
 
 ## Team
 
