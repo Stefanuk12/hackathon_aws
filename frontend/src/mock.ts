@@ -9,8 +9,9 @@
  * never write on reads, so they can't overwrite newer state from another tab.
  */
 import type { Api } from "./api";
-import { DEFAULT_MODE, DEFAULT_ROUNDS, MAX_ROUNDS, TEXT_LIMIT } from "./config";
-import type { GameMode, ModeSetting, Result, Room, RoomState } from "./types";
+import { DEFAULT_MODE, DEFAULT_ROUNDS, ELIMINATION, MAX_ROUNDS, TEXT_LIMIT } from "./config";
+import { applyElimination } from "./elimination";
+import type { GameMode, ModeSetting, Result, Room, RoundOutcome, RoomState } from "./types";
 import { pick, sleep } from "./ui";
 
 const ROUND_MS = Number(new URLSearchParams(location.search).get("seconds") ?? 60) * 1000;
@@ -116,6 +117,8 @@ interface MockPlayer {
   playerId: string;
   name: string;
   score: number;
+  alive: boolean;
+  streak: number;
   bot?: boolean;
   botSubmitAt?: number;
 }
@@ -132,6 +135,9 @@ interface MockRoom {
   round: number;
   totalRounds: number;
   mode: ModeSetting;
+  elimination: boolean;
+  reviveAfter: number;
+  outcome?: RoundOutcome;
   roundMode?: GameMode;
   prompt?: string;
   endsAt?: number;
@@ -199,10 +205,23 @@ function finishJudging(room: MockRoom) {
     }
     return { ...s, rank: i + 1, roast: roastFor(ROASTS[mode], name) };
   });
-  for (const s of scored) {
-    const player = room.players.find((p) => p.playerId === s.playerId);
-    if (player) player.score += s.score;
+  // Points: the score, unless elimination makes this player a ghost (reduced points).
+  let points: Record<string, number> = Object.fromEntries(scored.map((s) => [s.playerId, s.score]));
+  room.outcome = undefined;
+  if (room.elimination) {
+    const ghosts = new Set(room.players.filter((p) => !p.alive).map((p) => p.playerId));
+    const out = applyElimination(room.players, points, {
+      reviveAfter: room.reviveAfter,
+      reviveScore: ELIMINATION.reviveScore,
+      ghostMultiplier: ELIMINATION.ghostMultiplier,
+    });
+    points = out.points;
+    for (const p of room.players) Object.assign(p, out.players.find((o) => o.playerId === p.playerId));
+    for (const r of room.results) r.ghost = ghosts.has(r.playerId);
+    room.outcome = { eliminated: out.eliminated, revived: out.revived };
   }
+  for (const r of room.results) r.points = points[r.playerId] ?? 0;
+  for (const p of room.players) p.score += points[p.playerId] ?? 0;
   room.state = "results";
 }
 
@@ -214,10 +233,18 @@ function view(room: MockRoom): Room {
     round: room.round,
     totalRounds: room.totalRounds,
     mode: room.mode,
+    elimination: room.elimination,
+    reviveAfter: room.reviveAfter,
     roundMode: room.roundMode,
     prompt: room.prompt,
     endsAt: room.endsAt,
-    players: room.players.map(({ playerId, name, score }) => ({ playerId, name, score, submitted: !!entries[playerId] })),
+    players: room.players.map(({ playerId, name, score, alive, streak }) => ({
+      playerId,
+      name,
+      score,
+      submitted: !!entries[playerId],
+      ...(room.elimination ? { alive, streak } : {}),
+    })),
     results:
       room.state === "results"
         ? room.results?.map((r) => {
@@ -229,6 +256,7 @@ function view(room: MockRoom): Room {
             };
           })
         : undefined,
+    outcome: room.state === "results" ? room.outcome : undefined,
     audioUrl: null,
   };
 }
@@ -281,6 +309,8 @@ export const mock: Api = {
       round: 0,
       totalRounds: DEFAULT_ROUNDS,
       mode: DEFAULT_MODE,
+      elimination: ELIMINATION.defaultOn,
+      reviveAfter: ELIMINATION.defaultReviveAfter,
       players: [],
       entries: {},
       usedPrompts: [],
@@ -292,7 +322,7 @@ export const mock: Api = {
     await latency();
     const room = load(code);
     const playerId = `p_${newId()}`;
-    room.players.push({ playerId, name, score: 0 });
+    room.players.push({ playerId, name, score: 0, alive: true, streak: 0 });
     save(room);
     return { playerId };
   },
@@ -314,6 +344,10 @@ export const mock: Api = {
     if (room.state === "lobby") {
       if (settings?.totalRounds) room.totalRounds = Math.min(MAX_ROUNDS, Math.max(1, Math.round(settings.totalRounds)));
       if (settings?.mode) room.mode = settings.mode;
+      if (settings?.elimination !== undefined) room.elimination = settings.elimination;
+      if (settings?.reviveAfter) {
+        room.reviveAfter = Math.min(ELIMINATION.maxReviveAfter, Math.max(1, Math.round(settings.reviveAfter)));
+      }
     }
     if (room.round >= room.totalRounds) throw new Error("Game over! Press Play again.");
     freeImages(room);
@@ -327,6 +361,7 @@ export const mock: Api = {
     room.state = "drawing";
     room.endsAt = Date.now() + ROUND_MS;
     room.results = undefined;
+    room.outcome = undefined;
     for (const p of room.players.filter((p) => p.bot)) {
       p.botSubmitAt = Date.now() + 3000 + Math.random() * ROUND_MS * 0.6;
       if (room.roundMode === "draw") localStorage.setItem(imageKey(drawingKey(room, p.playerId)), scribble());
@@ -375,8 +410,9 @@ export const mock: Api = {
       prompt: undefined,
       endsAt: undefined,
       results: undefined,
+      outcome: undefined,
     });
-    for (const p of room.players) p.score = 0;
+    for (const p of room.players) Object.assign(p, { score: 0, alive: true, streak: 0 });
     save(room);
     return { ok: true };
   },
@@ -386,6 +422,6 @@ export function mockAddBot(code: string) {
   const room = load(code);
   const taken = new Set(room.players.map((p) => p.name));
   const name = BOT_NAMES.find((n) => !taken.has(n)) ?? `Bot ${room.players.length + 1}`;
-  room.players.push({ playerId: `bot_${newId()}`, name, score: 0, bot: true });
+  room.players.push({ playerId: `bot_${newId()}`, name, score: 0, alive: true, streak: 0, bot: true });
   save(room);
 }

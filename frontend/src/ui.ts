@@ -131,10 +131,44 @@ export function entryHtml(r: Result, caption = "") {
   return `<figure class="frame">${img}${cap}</figure>`;
 }
 
-/** The stamp: score, plus SURVIVED / DEAD in Survive rounds. */
+/** The stamp: score, plus SURVIVED / DEAD in Survive rounds, and the halved points for ghosts. */
 export function stampHtml(r: Result) {
+  const ghost = r.ghost ? ` <small>→ +${r.points ?? 0} 👻</small>` : "";
   if (r.survived !== undefined) {
-    return `<span class="stamp ${r.survived ? "good" : ""}">${r.survived ? "SURVIVED" : "💀 DEAD"} · ${r.score}/10</span>`;
+    return `<span class="stamp ${r.survived ? "good" : ""}">${r.survived ? "SURVIVED" : "💀 DEAD"} · ${r.score}/10${ghost}</span>`;
   }
-  return `<span class="stamp ${r.score >= 7 ? "good" : ""}">${r.score}/10</span>`;
+  return `<span class="stamp ${r.score >= 7 ? "good" : ""}">${r.score}/10${ghost}</span>`;
 }
+
+// ---------- Stepper (− n +) ----------
+
+export const stepperHtml = (name: string, label: string) => `
+  <div class="stepper" role="group" aria-label="${esc(label)}" data-stepper="${name}">
+    <button type="button" class="stepper-btn" data-dec aria-label="Less">−</button>
+    <output class="stepper-value" aria-live="polite"></output>
+    <button type="button" class="stepper-btn" data-inc aria-label="More">+</button>
+  </div>`;
+
+/** Wire up a stepperHtml() block. Returns a getter for the current value. */
+export function bindStepper(root: ParentNode, name: string, min: number, max: number, initial: number, onChange: (n: number) => void) {
+  const el = $(root, `[data-stepper="${name}"]`);
+  const value = $(el, ".stepper-value");
+  const dec = $<HTMLButtonElement>(el, "[data-dec]");
+  const inc = $<HTMLButtonElement>(el, "[data-inc]");
+  let current = initial;
+  const set = (n: number) => {
+    current = Math.min(max, Math.max(min, n));
+    value.textContent = String(current);
+    dec.disabled = current <= min;
+    inc.disabled = current >= max;
+    onChange(current);
+  };
+  set(initial);
+  dec.addEventListener("click", () => set(current - 1));
+  inc.addEventListener("click", () => set(current + 1));
+  return () => current;
+}
+
+/** Chip classes for a player: submitted state + ghost when eliminated. */
+export const chipState = (p: Player, submittedClass = true) =>
+  [submittedClass ? (p.submitted ? "done" : "waiting") : "", p.alive === false ? "dead" : ""].join(" ");

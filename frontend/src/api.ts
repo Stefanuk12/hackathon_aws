@@ -1,5 +1,5 @@
 import { mock } from "./mock";
-import type { ModeSetting, Room, Submission } from "./types";
+import type { GameSettings, Room, Submission } from "./types";
 
 /** Mirrors contracts/api.md. */
 export interface Api {
@@ -7,10 +7,7 @@ export interface Api {
   joinRoom(code: string, name: string): Promise<{ playerId: string }>;
   getRoom(code: string): Promise<Room>;
   /** Settings are only read when starting from the lobby. */
-  startRound(
-    code: string,
-    settings?: { totalRounds?: number; mode?: ModeSetting },
-  ): Promise<{ round: number; prompt: string; endsAt: number }>;
+  startRound(code: string, settings?: GameSettings): Promise<{ round: number; prompt: string; endsAt: number }>;
   uploadUrl(code: string, playerId: string): Promise<{ url: string; key: string }>;
   putDrawing(url: string, image: Blob): Promise<void>;
   submit(code: string, playerId: string, submission: Submission): Promise<{ ok: boolean }>;

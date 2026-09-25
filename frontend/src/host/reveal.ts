@@ -44,7 +44,7 @@ export const revealScreen =
       step.textContent = `${noun[0].toUpperCase()}${noun.slice(1)} ${index + 1} of ${results.length}`;
       stage.innerHTML = `
         <div class="reveal-grid">
-          ${entryHtml(r, `${avatarHtml(r.playerId, "sm")} ${esc(r.name)}`)}
+          ${entryHtml(r, `${avatarHtml(r.playerId, "sm")} ${esc(r.name)}${r.ghost ? ` <span class="ghost-tag">👻 ghost · half points</span>` : ""}`)}
           <div class="stack">
             <div class="card prompt-recap"><span class="prompt-label">${esc(mode.instruction)}</span>${esc(room.prompt ?? "")}</div>
             <div class="rank-row">
@@ -61,11 +61,49 @@ export const revealScreen =
       await sleep(winner ? PAUSE_AFTER_ROAST_MS * 1.5 : PAUSE_AFTER_ROAST_MS);
     };
 
+    /** Elimination: announce who died and who came back before the leaderboard. */
+    const showOutcome = async (room: Room) => {
+      const out = room.outcome;
+      if (!out || (!out.eliminated.length && !out.revived.length)) return;
+      const nameOf = (id: string) => room.players.find((p) => p.playerId === id)?.name ?? "?";
+      const card = (id: string, dead: boolean) => `
+        <div class="outcome-card ${dead ? "outcome-dead" : "outcome-revived"}">
+          ${avatarHtml(id, "lg")}
+          <strong>${esc(nameOf(id))}</strong>
+          <span>${dead ? "💀 ELIMINATED" : "🧟 BACK FROM THE DEAD"}</span>
+        </div>`;
+      step.textContent = "Elimination";
+      stage.innerHTML = `
+        <div class="outcome-stage">
+          <div class="outcome-cards">
+            ${out.eliminated.map((id) => card(id, true)).join("")}
+            ${out.revived.map((id) => card(id, false)).join("")}
+          </div>
+          ${aiHtml("ai-lg")}
+        </div>`;
+      const died = out.eliminated.map(nameOf);
+      const back = out.revived.map(nameOf);
+      const lines = [
+        died.length ? `${died.join(" and ")} scored lowest. ${died.length > 1 ? "They are" : "They're"} dead now. Half points from here on.` : "",
+        back.length ? `${back.join(" and ")} clawed their way back. Welcome back to the living.` : "",
+      ];
+      await aiSay(stage, lines.filter(Boolean).join(" "), 34);
+      await sleep(PAUSE_AFTER_ROAST_MS * 1.5);
+    };
+
     const showBoard = (room: Room) => {
       const final = isGameOver(room);
       skipButton.hidden = true;
       step.textContent = final ? "Game over" : `After round ${room.round} of ${room.totalRounds}`;
-      const roundScore = new Map((room.results ?? []).map((r) => [r.playerId, r.score]));
+      const roundPoints = new Map((room.results ?? []).map((r) => [r.playerId, r.points ?? r.score]));
+      const eliminated = new Set(room.outcome?.eliminated);
+      const revived = new Set(room.outcome?.revived);
+      const status = (p: Room["players"][number]) => {
+        if (eliminated.has(p.playerId)) return `<span class="status-tag dead-tag">💀 eliminated</span>`;
+        if (revived.has(p.playerId)) return `<span class="status-tag revived-tag">🧟 revived</span>`;
+        if (p.alive === false) return `<span class="status-tag dead-tag">👻 revive ${p.streak ?? 0}/${room.reviveAfter}</span>`;
+        return "";
+      };
       const players = [...room.players].sort((a, b) => b.score - a.score);
       const medal = ["🥇", "🥈", "🥉"];
       stage.innerHTML = `
@@ -76,11 +114,11 @@ export const revealScreen =
             ${players
               .map(
                 (p, i) => `
-              <li style="animation-delay:${i * 80}ms">
+              <li style="animation-delay:${i * 80}ms" class="${p.alive === false ? "dead" : ""}">
                 <span class="pos">${medal[i] ?? i + 1}</span>
                 ${avatarHtml(p.playerId, "sm")}
-                <span>${esc(p.name)}</span>
-                <span class="delta">${roundScore.has(p.playerId) ? `+${roundScore.get(p.playerId)}` : "—"}</span>
+                <span>${esc(p.name)} ${status(p)}</span>
+                <span class="delta">${roundPoints.has(p.playerId) ? `+${roundPoints.get(p.playerId)}` : "—"}</span>
                 <span class="total">${p.score}</span>
               </li>`,
               )
@@ -120,6 +158,7 @@ export const revealScreen =
         if (skipped || !el.isConnected) return;
         await showOne(r, i);
       }
+      if (!skipped && el.isConnected) await showOutcome(latest);
       if (!skipped && el.isConnected) showBoard(latest);
     })();
 

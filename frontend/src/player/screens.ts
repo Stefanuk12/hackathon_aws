@@ -1,9 +1,9 @@
 import { aiHtml, aiLoop, aiSay, JUDGING_LINES, WAITING_LINES } from "../ai";
 import { api } from "../api";
-import { MODES, TEXT_LIMIT } from "../config";
+import { ELIMINATION, MODES, TEXT_LIMIT } from "../config";
 import type { ScreenFactory } from "../router";
 import { isGameOver, type Room } from "../types";
-import { $, avatarHtml, confetti, countdown, entryHtml, esc, logoHtml, pick, stampHtml, syncChips, toast } from "../ui";
+import { $, avatarHtml, chipState, confetti, countdown, entryHtml, esc, logoHtml, pick, stampHtml, syncChips, toast } from "../ui";
 import { createPad } from "./canvas";
 import { submitDrawing } from "./upload";
 
@@ -43,6 +43,18 @@ export const lobbyScreen =
     return { update };
   };
 
+/** Elimination: remind ghosts of the rules and their revive progress. */
+function ghostBanner(ctx: PlayerCtx, room: Room) {
+  const player = me(ctx, room);
+  if (!room.elimination || player?.alive !== false) return "";
+  const left = room.reviveAfter - (player.streak ?? 0);
+  return `
+      <div class="ghost-banner" role="status">
+        <strong>👻 You're a ghost</strong>
+        <span>Half points. Score ${ELIMINATION.reviveScore}+ ${left === 1 ? "this round" : `${left} rounds in a row`} to revive.</span>
+      </div>`;
+}
+
 function promptHeader(room: Room) {
   const mode = MODES[room.roundMode ?? "draw"];
   return `
@@ -68,6 +80,7 @@ const textScreen =
     el.innerHTML = `
     <main class="screen draw-screen">
       ${promptHeader(room)}
+      ${ghostBanner(ctx, room)}
       <label class="answer-box">
         <span class="sr-only">Your answer</span>
         <textarea class="field answer" maxlength="${TEXT_LIMIT}" rows="5"
@@ -118,6 +131,7 @@ const drawingScreen =
     el.innerHTML = `
     <main class="screen draw-screen">
       ${promptHeader(room)}
+      ${ghostBanner(ctx, room)}
       <div class="pad"></div>
       <button class="btn btn-big btn-block btn-go">Done! Send it ✏️</button>
     </main>`;
@@ -167,7 +181,7 @@ export const sentScreen =
       const done = room.players.filter((p) => p.submitted || p.playerId === ctx.playerId).length;
       $(el, "[data-progress]").textContent = `${done} of ${room.players.length} drawings in`;
       syncChips($(el, "[data-players]"), room.players, (p) =>
-        p.submitted || p.playerId === ctx.playerId ? "done" : "waiting",
+        chipState({ ...p, submitted: p.submitted || p.playerId === ctx.playerId }),
       );
     };
     update(room);
@@ -191,6 +205,26 @@ export const resultsScreen =
     const mine = results.find((r) => r.playerId === ctx.playerId);
     const total = me(ctx, room)?.score ?? 0;
     const final = isGameOver(room);
+    const player = me(ctx, room);
+    const elim = room.elimination
+      ? room.outcome?.eliminated.includes(ctx.playerId)
+        ? `<section class="card stack center-text elim-card dead">
+             <div class="big-emoji">💀</div>
+             <h2>You've been eliminated</h2>
+             <p>Keep playing as a ghost for half points. Score ${ELIMINATION.reviveScore}+ ${room.reviveAfter === 1 ? "in a round" : `in ${room.reviveAfter} rounds in a row`} to revive.</p>
+           </section>`
+        : room.outcome?.revived.includes(ctx.playerId)
+          ? `<section class="card stack center-text elim-card revived">
+               <div class="big-emoji">🧟</div>
+               <h2>You're back from the dead!</h2>
+               <p>Full points again. Don't come last.</p>
+             </section>`
+          : player?.alive === false
+            ? `<section class="card stack center-text elim-card dead">
+                 <p><strong>👻 Still a ghost.</strong> Revive progress: ${player.streak ?? 0}/${room.reviveAfter}</p>
+               </section>`
+            : ""
+      : "";
     const overall = [...room.players].sort((a, b) => b.score - a.score).findIndex((p) => p.playerId === ctx.playerId) + 1;
     const footer = final
       ? `<section class="card stack center-text final-card">
@@ -209,6 +243,7 @@ export const resultsScreen =
         ${stampHtml(mine)}
         <p>Total: <strong>${total} pts</strong></p>
       </section>
+      ${elim}
       ${aiHtml()}
       ${footer}
     </main>`
@@ -219,6 +254,7 @@ export const resultsScreen =
         <h2>Nothing sent, no score</h2>
         <p>Total: <strong>${total} pts</strong></p>
       </section>
+      ${elim}
       ${aiHtml()}
       ${footer}
     </main>`;

@@ -1,15 +1,17 @@
 import QRCode from "qrcode";
 import { aiHtml, aiLoop, LOBBY_LINES } from "../ai";
 import { api, MOCK } from "../api";
-import { DEFAULT_MODE, DEFAULT_ROUNDS, joinUrl, MAX_ROUNDS, MODE_SETTINGS, settingInfo, TAGLINE } from "../config";
+import { DEFAULT_MODE, DEFAULT_ROUNDS, ELIMINATION, joinUrl, MAX_ROUNDS, MODE_SETTINGS, settingInfo, TAGLINE } from "../config";
 import { mockAddBot } from "../mock";
 import type { ScreenFactory } from "../router";
 import type { ModeSetting, Room } from "../types";
-import { $, esc, logoHtml, syncChips, toast } from "../ui";
+import { $, bindStepper, chipState, esc, logoHtml, stepperHtml, syncChips, toast } from "../ui";
 
 // Remember the host's choices across games in this tab.
 const ROUNDS_KEY = "host:rounds";
 const MODE_KEY = "host:mode";
+const ELIM_KEY = "host:elimination";
+const REVIVE_KEY = "host:reviveAfter";
 
 export const lobbyScreen =
   (code: string): ScreenFactory =>
@@ -47,12 +49,19 @@ export const lobbyScreen =
         <p class="mode-blurb" aria-live="polite"></p>
         <div class="settings-row">
           <span class="lbl">Rounds</span>
-          <div class="stepper" role="group" aria-label="Number of rounds">
-            <button type="button" class="stepper-btn" data-dec aria-label="Fewer rounds">−</button>
-            <output class="stepper-value" aria-live="polite"></output>
-            <button type="button" class="stepper-btn" data-inc aria-label="More rounds">+</button>
+          ${stepperHtml("rounds", "Number of rounds")}
+          <span class="lbl elim-lbl">💀 Elimination</span>
+          <button type="button" class="switch" role="switch" data-elim aria-label="Elimination"><span></span></button>
+          <div class="revive-setting">
+            <span class="muted-ink">Revive after</span>
+            ${stepperHtml("revive", "Good rounds in a row to revive")}
+            <span class="muted-ink" data-revive-unit></span>
           </div>
         </div>
+        <p class="elim-rules" hidden>
+          Lowest score each round dies. Ghosts keep playing for half points, and come back after
+          scoring ${ELIMINATION.reviveScore}+ in enough rounds in a row.
+        </p>
       </section>
       <footer class="host-foot">
         ${aiHtml("ai-lg")}
@@ -88,26 +97,36 @@ export const lobbyScreen =
     });
 
     // ---- Rounds ----
-    let rounds = Number(sessionStorage.getItem(ROUNDS_KEY)) || room.totalRounds || DEFAULT_ROUNDS;
-    const value = $(el, ".stepper-value");
-    const dec = $<HTMLButtonElement>(el, "[data-dec]");
-    const inc = $<HTMLButtonElement>(el, "[data-inc]");
-    const setRounds = (n: number) => {
-      rounds = Math.min(MAX_ROUNDS, Math.max(1, n));
-      value.textContent = String(rounds);
-      dec.disabled = rounds <= 1;
-      inc.disabled = rounds >= MAX_ROUNDS;
-      sessionStorage.setItem(ROUNDS_KEY, String(rounds));
+    const rounds = bindStepper(el, "rounds", 1, MAX_ROUNDS,
+      Number(sessionStorage.getItem(ROUNDS_KEY)) || room.totalRounds || DEFAULT_ROUNDS,
+      (n) => sessionStorage.setItem(ROUNDS_KEY, String(n)));
+
+    // ---- Elimination ----
+    const savedElim = sessionStorage.getItem(ELIM_KEY);
+    let elimination = savedElim === null ? room.elimination ?? ELIMINATION.defaultOn : savedElim === "true";
+    const toggle = $<HTMLButtonElement>(el, "[data-elim]");
+    const setElimination = (on: boolean) => {
+      elimination = on;
+      toggle.setAttribute("aria-checked", String(on));
+      $(el, ".revive-setting").classList.toggle("off", !on);
+      el.querySelectorAll<HTMLButtonElement>('[data-stepper="revive"] button').forEach((b) => (b.dataset.off = String(!on)));
+      $(el, ".elim-rules").hidden = !on;
+      sessionStorage.setItem(ELIM_KEY, String(on));
     };
-    setRounds(rounds);
-    dec.addEventListener("click", () => setRounds(rounds - 1));
-    inc.addEventListener("click", () => setRounds(rounds + 1));
+    toggle.addEventListener("click", () => setElimination(!elimination));
+    const reviveAfter = bindStepper(el, "revive", 1, ELIMINATION.maxReviveAfter,
+      Number(sessionStorage.getItem(REVIVE_KEY)) || room.reviveAfter || ELIMINATION.defaultReviveAfter,
+      (n) => {
+        sessionStorage.setItem(REVIVE_KEY, String(n));
+        $(el, "[data-revive-unit]").textContent = n === 1 ? "good round" : "good rounds in a row";
+      });
+    setElimination(elimination);
 
     const start = $<HTMLButtonElement>(el, "[data-start]");
     start.addEventListener("click", async () => {
       start.disabled = true;
       try {
-        await api.startRound(code, { totalRounds: rounds, mode });
+        await api.startRound(code, { totalRounds: rounds(), mode, elimination, reviveAfter: reviveAfter() });
       } catch (err) {
         toast(err instanceof Error ? err.message : "Couldn't start the round");
         start.disabled = false;
@@ -118,7 +137,7 @@ export const lobbyScreen =
     const update = (room: Room) => {
       $(el, "[data-count]").textContent = `Players (${room.players.length})`;
       $(el, ".empty-hint").hidden = room.players.length > 0;
-      syncChips($(el, "[data-players]"), room.players);
+      syncChips($(el, "[data-players]"), room.players, (p) => chipState(p, false));
       start.disabled = room.players.length === 0;
     };
     update(room);

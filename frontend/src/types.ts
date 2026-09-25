@@ -11,6 +11,10 @@ export interface Player {
   name: string;
   score: number;
   submitted?: boolean;
+  /** Elimination only: false once eliminated (a "ghost" until revived). */
+  alive?: boolean;
+  /** Elimination only: good rounds in a row towards reviving (dead players). */
+  streak?: number;
 }
 
 export interface Result {
@@ -25,6 +29,24 @@ export interface Result {
   text?: string;
   /** Survive rounds only. */
   survived?: boolean;
+  /** Points actually added to the total (the score, or half of it for ghosts). */
+  points?: number;
+  /** Elimination only: this player was dead during the round. */
+  ghost?: boolean;
+}
+
+/** Elimination only: who died and who came back at the end of this round. */
+export interface RoundOutcome {
+  eliminated: string[];
+  revived: string[];
+}
+
+export interface GameSettings {
+  totalRounds?: number;
+  mode?: ModeSetting;
+  elimination?: boolean;
+  /** Good rounds in a row a dead player needs to revive. */
+  reviveAfter?: number;
 }
 
 /** Draw rounds send the uploaded image key; text rounds send the answer. */
@@ -39,11 +61,15 @@ export interface Room {
   round: number;
   totalRounds: number;
   mode: ModeSetting;
+  elimination: boolean;
+  reviveAfter: number;
   /** The current round's mode; set once a round has started. */
   roundMode?: GameMode;
   prompt?: string;
   endsAt?: number;
   players: Player[];
   results?: Result[];
+  /** Present in "results" when elimination is on. */
+  outcome?: RoundOutcome;
   audioUrl?: string | null;
 }

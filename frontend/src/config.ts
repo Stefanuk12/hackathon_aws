@@ -10,6 +10,17 @@ export const TAGLINE = "Draw it. Type it. The AI decides your fate.";
 export const DEFAULT_ROUNDS = 3;
 export const MAX_ROUNDS = 10;
 
+/** Elimination: lowest score each round dies; ghosts earn reduced points and can revive. */
+export const ELIMINATION = {
+  defaultOn: false,
+  defaultReviveAfter: 2,
+  maxReviveAfter: 5,
+  /** A dead player's round counts towards reviving at this score or higher. */
+  reviveScore: 6,
+  /** Ghosts earn this fraction of their score (rounded down). */
+  ghostMultiplier: 0.5,
+};
+
 /** Max characters for Survive / Quick Wit answers (the backend enforces the same limit). */
 export const TEXT_LIMIT = 200;
 

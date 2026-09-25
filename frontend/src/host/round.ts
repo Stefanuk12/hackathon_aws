@@ -3,7 +3,7 @@ import { api } from "../api";
 import { MODES } from "../config";
 import type { ScreenFactory } from "../router";
 import type { Room } from "../types";
-import { $, countdown, esc, logoHtml, pick, syncChips } from "../ui";
+import { $, chipState, countdown, esc, logoHtml, pick, syncChips } from "../ui";
 
 // Phones auto-submit at 0; give their uploads a moment to land before ending the round.
 const END_GRACE_MS = 2500;
@@ -18,6 +18,7 @@ export const roundScreen =
       <header class="row spread">
         ${logoHtml("logo-sm")}
         <div class="row">
+          ${room.elimination ? `<span class="pill elim-pill">💀 Elimination · ${room.players.filter((p) => p.alive !== false).length} alive</span>` : ""}
           <span class="pill mode-pill">${mode.emoji} ${esc(mode.name)}</span>
           <span class="pill">Round ${room.round} of ${room.totalRounds}</span>
         </div>
@@ -50,7 +51,7 @@ export const roundScreen =
     const update = (room: Room) => {
       const done = room.players.filter((p) => p.submitted).length;
       $(el, "[data-progress]").textContent = `${done} / ${room.players.length} ${mode.noun} in`;
-      syncChips($(el, "[data-players]"), room.players, (p) => (p.submitted ? "done" : "waiting"));
+      syncChips($(el, "[data-players]"), room.players, (p) => chipState(p));
     };
     update(room);
     return {

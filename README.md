@@ -15,6 +15,8 @@ The host picks a mode in the lobby, along with the number of rounds.
 | 💬 **Quick Wit** (Quiplash style) | "A rejected AWS service name" | type the funniest answer | funniness, 0–10 |
 | 🔀 **Mixed** (default) | Draw → Survive → Quick Wit, repeating | | |
 
+**💀 Elimination** is an optional switch that works with any mode. The lowest-scoring living player dies each round. Dead players keep answering as ghosts for half points, and revive after scoring 6+ in a number of rounds in a row (the host sets this, 1–5).
+
 ## Game loop
 
 1. The host screen shows a QR code and room code. Players join on their phones.
@@ -108,9 +110,9 @@ Region: **eu-west-2 (London)**. Everything is serverless and defined in one SAM 
 
 | PK | SK | Attributes |
 |---|---|---|
-| `ROOM#<code>` | `META` | `state` (lobby \| drawing \| judging \| results), `round`, `totalRounds`, `mode`, `roundMode`, `prompt`, `endsAt` |
-| `ROOM#<code>` | `PLAYER#<id>` | `name`, `score` |
-| `ROOM#<code>` | `ROUND#<n>#<playerId>` | `s3Key` (draw) or `text` (survive/wit), `rank`, `score`, `roast`, `survived` (survive) |
+| `ROOM#<code>` | `META` | `state` (lobby \| drawing \| judging \| results), `round`, `totalRounds`, `mode`, `roundMode`, `elimination`, `reviveAfter`, `prompt`, `endsAt`, `outcome` |
+| `ROOM#<code>` | `PLAYER#<id>` | `name`, `score`, `alive`, `streak` |
+| `ROOM#<code>` | `ROUND#<n>#<playerId>` | `s3Key` (draw) or `text` (survive/wit), `rank`, `score`, `points`, `ghost`, `roast`, `survived` (survive) |
 
 ### HTTP API, realtime events and response shapes
 
@@ -120,7 +122,7 @@ Region: **eu-west-2 (London)**. Everything is serverless and defined in one SAM 
 POST /rooms                        → {code}
 POST /rooms/{code}/join            {name} → {playerId}
 GET  /rooms/{code}                 → full room state (also the polling fallback)
-POST /rooms/{code}/start           {totalRounds?, mode?} → {round, prompt, endsAt}   (409 after the last round)
+POST /rooms/{code}/start           {totalRounds?, mode?, elimination?, reviveAfter?} → {round, prompt, endsAt}   (409 after the last round)
 POST /rooms/{code}/upload-url      {playerId} → {url, key}
 POST /rooms/{code}/submit          {playerId, key} (draw) or {playerId, text} (survive/wit)
 POST /rooms/{code}/end             host calls this when the timer hits 0
@@ -139,11 +141,11 @@ frontend/         1 + 2    Vite + TypeScript. index.html = phone, host.html = bi
   src/player/     1        canvas, upload, screens
   src/host/       2        lobby (mode + rounds), round, judging, reveal, leaderboard
 backend/          3        SAM stack (template.yaml), Python 3.12 Lambdas
-  src/shared/     3        DynamoDB keys, HTTP helpers, publish to AppSync Events
+  src/shared/     3        DynamoDB keys, HTTP helpers, AppSync publish, elimination rules
   src/rooms/      3        API handlers + save_results (last step of judging)
   src/ai/         4        prompt_gen + judge per mode, host_voice, ai_player (stretch), prompts/*.txt
   statemachine/   4        judge_round.asl.json: Judge → HostVoice → SaveResults
-  scripts/        4        test_judge.py: run the judge locally on samples/
+  scripts/        3 + 4    test_judge.py (judge on samples/), test_elimination.py (rules)
 samples/          4        test drawings (.jpg) for tuning the judge
 pitch/            5        diagram, slides, demo script
 ```

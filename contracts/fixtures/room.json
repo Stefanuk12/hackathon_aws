@@ -4,6 +4,8 @@
   "round": 1,
   "totalRounds": 3,
   "mode": "mixed",
+  "elimination": false,
+  "reviveAfter": 2,
   "roundMode": "draw",
   "prompt": "A penguin running a lemonade stand",
   "endsAt": 1790000000000,
