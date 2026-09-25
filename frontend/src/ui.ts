@@ -131,12 +131,9 @@ export function entryHtml(r: Result, caption = "") {
   return `<figure class="frame">${img}${cap}</figure>`;
 }
 
-/** The stamp: score, plus SURVIVED / DEAD in Survive rounds, and the halved points for ghosts. */
+/** The stamp: the score out of 10, plus the halved points for ghosts. */
 export function stampHtml(r: Result) {
   const ghost = r.ghost ? ` <small>→ +${r.points ?? 0} 👻</small>` : "";
-  if (r.survived !== undefined) {
-    return `<span class="stamp ${r.survived ? "good" : ""}">${r.survived ? "SURVIVED" : "💀 DEAD"} · ${r.score}/10${ghost}</span>`;
-  }
   return `<span class="stamp ${r.score >= 7 ? "good" : ""}">${r.score}/10${ghost}</span>`;
 }
 

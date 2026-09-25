@@ -9,7 +9,7 @@ Base URL: the `ApiUrl` output from the SAM stack. All bodies are JSON. CORS is o
 | GET | `/rooms/{code}` | – | full room state | `room.json` |
 | POST | `/rooms/{code}/start` | `{totalRounds?, mode?, elimination?, reviveAfter?, themeEvery?}` | `{round, prompt, endsAt}` | `start_round.json` |
 | POST | `/rooms/{code}/upload-url` | `{playerId}` | `{url, key}` | `upload_url.json` |
-| POST | `/rooms/{code}/submit` | `{playerId, key}` or `{playerId, text}` | `{ok}` | – |
+| POST | `/rooms/{code}/submit` | `{playerId, key}` (draw) or `{playerId, text}` (learn/wit) | `{ok}` | – |
 | POST | `/rooms/{code}/end` | – | `{ok}` | – |
 | POST | `/rooms/{code}/reset` | – | `{ok}` | – |
 | POST | `/rooms/{code}/begin` | – | `{ok}` | – |
@@ -17,10 +17,10 @@ Base URL: the `ApiUrl` output from the SAM stack. All bodies are JSON. CORS is o
 ## Notes
 
 - `endsAt` is a Unix timestamp in milliseconds.
-- **Game modes:** `start` from the `lobby` may send `{mode}`: `"draw"`, `"survive"`, `"wit"` or `"mixed"` (default `"mixed"`). The room returns it as `mode`, and each round's actual mode as `roundMode`. In `"mixed"`, round *n* uses `["draw", "survive", "wit"][(n - 1) % 3]`.
+- **Game modes:** `start` from the `lobby` may send `{mode}`: `"draw"`, `"learn"`, `"wit"` or `"mixed"` (default `"mixed"`). The room returns it as `mode`, and each round's actual mode as `roundMode`. In `"mixed"`, round *n* uses `["draw", "learn", "wit"][(n - 1) % 3]`.
   - `draw`: players upload a drawing (`upload-url` → PUT → `submit {key}`).
-  - `survive` (Death by AI style) and `wit` (Quiplash style): players type an answer and `submit {text}` (max 200 chars, no upload).
-  - Results have `imageUrl` in draw rounds and `text` in survive/wit rounds. Survive results also have `survived: true | false`.
+  - `learn` (an AWS quiz) and `wit` (Quiplash style): players type an answer and `submit {text}` (max 200 chars, no upload).
+  - Results have `imageUrl` in draw rounds and `text` in learn/wit rounds.
 - **Elimination** (optional, works with any mode): `start` from the `lobby` may send `{elimination: true, reviveAfter: 1-5}` (defaults `false`, `2`). The room returns `elimination` and `reviveAfter`; players get `alive` and `streak` (good rounds in a row while dead).
   - After each round the lowest-scoring **living** player dies; non-submitters score 0. Ties at the bottom all die, unless that would kill everyone alive (then nobody dies).
   - Dead players ("ghosts") keep playing for **half points** (rounded down). A score of **6+** extends their streak, anything lower resets it; at `reviveAfter` in a row they revive.

@@ -203,8 +203,7 @@ from rooms import begin_round  # noqa: E402
 
 begin_round.publish = lambda code, type, **p: events.append(type)
 judge.judge_text = lambda mode, prompt, answers: [
-    {"answer": i, "rank": i, "score": 10 - i, "roast": f"roast {i}", **({"survived": i == 1} if mode == "survive" else {})}
-    for i in range(1, len(answers) + 1)
+    {"answer": i, "rank": i, "score": 10 - i, "roast": f"roast {i}"} for i in range(1, len(answers) + 1)
 ]
 
 
@@ -216,23 +215,22 @@ def play_text_round(code, ids, answers):
     return call(get_room, code)[1]
 
 
-# Survive: typed answers, no upload, and the AI says who lived.
-code, ids = new_game("Ann", "Bo", mode="survive")
-assert call(get_room, code)[1]["roundMode"] == "survive"
+# Learn: typed answers to an AWS question, no upload.
+code, ids = new_game("Ann", "Bo", mode="learn")
+assert call(get_room, code)[1]["roundMode"] == "learn"
 assert call(upload_url, code, playerId=ids[0])[0] == 409, "typed rounds have nothing to upload"
-room = play_text_round(code, ids, ["I befriend the bear", "I panic"])
-assert {r["text"] for r in room["results"]} == {"I befriend the bear", "I panic"}, room["results"]
-assert [r["survived"] for r in room["results"]] == [True, False]
+room = play_text_round(code, ids, ["It runs code without servers", "No idea"])
+assert {r["text"] for r in room["results"]} == {"It runs code without servers", "No idea"}, room["results"]
 assert "imageUrl" not in room["results"][0], "typed answers carry text, not an image"
 assert sorted(p["score"] for p in room["players"]) == [8, 9]
 
-# Quick Wit: same shape, no survived flag. Answers are capped at 200 characters.
+# Quick Wit: same shape. Answers are capped at 200 characters.
 code, ids = new_game("Ann", "Bo", mode="wit")
 room = play_text_round(code, ids, ["x" * 500, "short"])
 assert max(len(r["text"]) for r in room["results"]) == submit.TEXT_LIMIT, "long answers are capped"
-assert all("survived" not in r for r in room["results"])
+assert all("survived" not in r for r in room["results"]), "no survived flag anywhere now"
 
-# Mixed cycles draw -> survive -> wit.
+# Mixed cycles draw -> learn -> wit.
 code, ids = new_game("Ann", "Bo", mode="mixed", totalRounds=3)
 seen = [call(get_room, code)[1]["roundMode"]]
 for _ in range(2):
@@ -240,8 +238,8 @@ for _ in range(2):
     save_results.handler({**executions[-1], "judge": {"results": []}}, None)
     call(start_round, code)
     seen.append(call(get_room, code)[1]["roundMode"])
-assert seen == ["draw", "survive", "wit"], seen
-print("OK: game modes (draw, survive, wit, mixed)")
+assert seen == ["draw", "learn", "wit"], seen
+print("OK: game modes (draw, learn, wit, mixed)")
 
 # ---------------------------------------------------------------- themed rounds
 code, ids = new_game("Ann", "Bo", mode="wit", themeEvery=1)

@@ -3,7 +3,7 @@
 export type RoomState = "lobby" | "theme" | "drawing" | "judging" | "results";
 
 /** What a single round is. */
-export type GameMode = "draw" | "survive" | "wit";
+export type GameMode = "draw" | "learn" | "wit";
 /** What the host picks in the lobby: one mode for every round, or "mixed". */
 export type ModeSetting = GameMode | "mixed";
 
@@ -26,10 +26,8 @@ export interface Result {
   roast: string;
   /** Draw rounds. */
   imageUrl?: string;
-  /** Survive / Quick Wit rounds. */
+  /** Learn / Quick Wit rounds. */
   text?: string;
-  /** Survive rounds only. */
-  survived?: boolean;
   /** Points actually added to the total (the score, or half of it for ghosts). */
   points?: number;
   /** Elimination only: this player was dead during the round. */

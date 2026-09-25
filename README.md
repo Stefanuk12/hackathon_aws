@@ -1,6 +1,6 @@
 # Amacide — AWS North x Northumbria Hackathon
 
-**Amacide** is a party game in the style of Gartic Phone and Death by AI. Bedrock writes the prompt, everyone answers it on their phone, and the AI ranks the answers against the prompt. A game-show host voice reads out the results and a roast of each answer (Polly, falling back to the browser's own speech).
+**Amacide** is a party game in the style of Gartic Phone and Quiplash, with an AWS quiz round that teaches players the services as they play. Bedrock writes the prompt, everyone answers it on their phone, and the AI ranks the answers against the prompt. A game-show host voice reads out the results and a roast of each answer (Polly, falling back to the browser's own speech).
 
 **Categories:** Traditional (party game), Digital worlds, Gamification
 
@@ -11,9 +11,9 @@ The host picks a mode in the lobby, along with the number of rounds.
 | Mode | Prompt example | Players | The AI judges |
 |---|---|---|---|
 | 🎨 **Draw** | "A penguin running a lemonade stand" | draw it | recognisability, 0–10 |
-| ☠️ **Survive** (Death by AI style) | "You wake up in a lift with a hungry bear." | type how they'd survive | **lives or dies**, plus a score |
+| 🎓 **Learn** (an AWS quiz) | "What does AWS Lambda let you avoid managing?" | type their best guess | how correct it is, 0–10, and tells everyone the right answer |
 | 💬 **Quick Wit** (Quiplash style) | "A rejected AWS service name" | type the funniest answer | funniness, 0–10 |
-| 🔀 **Mixed** (default) | Draw → Survive → Quick Wit, repeating | | |
+| 🔀 **Mixed** (default) | Draw → Learn → Quick Wit, repeating | | |
 
 **☁️ AWS themes** (every round, every 2nd round, or off): before a themed round, the big screen shows an intro to an AWS service: what it is, two facts, and how Amacide uses it. The host can skip it. The round's prompt then fits the theme. The 10 themes are in [backend/src/shared/themes.json](backend/src/shared/themes.json).
 
@@ -24,7 +24,7 @@ The host picks a mode in the lobby, along with the number of rounds.
 1. The host screen shows a QR code and room code. Players join on their phones.
 2. Bedrock generates a prompt (themed, scaled by difficulty, no repeats).
 3. Everyone draws or types an answer before the timer runs out.
-4. Bedrock ranks **all entries in one call**: vision for drawings (scoring recognisability, not art quality, and penalising written words), text for Survive and Quick Wit.
+4. Bedrock ranks **all entries in one call**: vision for drawings (scoring recognisability, not art quality, and penalising written words), text for Learn and Quick Wit.
 5. The reveal shows each entry's rank, score and one-line roast, read aloud by the host voice.
 
 **Stretch goals** (only once the core loop works end to end):
@@ -73,7 +73,7 @@ Region: **eu-west-2 (London)**. Everything is serverless and defined in one SAM 
 
 | Service | What we use it for | Owner |
 |---|---|---|
-| **Amazon Bedrock**: Claude | Writes each round's prompt for its mode. Judges all entries in one call (vision for drawings, text for Survive and Quick Wit) | 4 |
+| **Amazon Bedrock**: Claude | Writes each round's prompt for its mode. Judges all entries in one call (vision for drawings, text for Learn and Quick Wit) | 4 |
 | **AWS Lambda** (Python 3.12, arm64) | API handlers and the steps of the judging pipeline | 3, 4 |
 | **Amazon API Gateway** (HTTP API) | REST endpoints for rooms, joining, rounds, uploads | 3 |
 | **Amazon DynamoDB** | Single-table game state: rooms, players, drawings, scores | 3 |
@@ -114,7 +114,7 @@ Region: **eu-west-2 (London)**. Everything is serverless and defined in one SAM 
 |---|---|---|
 | `ROOM#<code>` | `META` | `state` (lobby \| theme \| drawing \| judging \| results), `round`, `totalRounds`, `mode`, `roundMode`, `elimination`, `reviveAfter`, `themeEvery`, `theme`, `themeEndsAt`, `prompt`, `endsAt`, `usedPrompts`, `usedThemes`, `outcome`, `audioUrl`, `hostScript`, `referenceUrls` |
 | `ROOM#<code>` | `PLAYER#<id>` | `name`, `alive`, `streak` (the last two matter only in elimination games) |
-| `ROOM#<code>` | `ROUND#<n>#<playerId>` | `s3Key` (draw) or `text` (survive/wit), then after judging `rank`, `score`, `points`, `roast`, plus `imageUrl`, `survived` or `ghost` where they apply |
+| `ROOM#<code>` | `ROUND#<n>#<playerId>` | `s3Key` (draw) or `text` (learn/wit), then after judging `rank`, `score`, `points`, `roast`, plus `imageUrl`, `ghost` where it applies |
 
 A player's total score isn't stored: `GET /rooms/{code}` sums their `ROUND#` **points** (the score, or half of it while eliminated). That makes saving results safe to retry, and "Play again" just deletes the `ROUND#` rows.
 
@@ -128,7 +128,7 @@ POST /rooms/{code}/join            {name} → {playerId}
 GET  /rooms/{code}                 → full room state (also the polling fallback)
 POST /rooms/{code}/start           {totalRounds?, mode?, elimination?, reviveAfter?, themeEvery?} → {round, prompt, endsAt}   (409 after the last round)
 POST /rooms/{code}/upload-url      {playerId} → {url, key}
-POST /rooms/{code}/submit          {playerId, key} (draw) or {playerId, text} (survive/wit)
+POST /rooms/{code}/submit          {playerId, key} (draw) or {playerId, text} (learn/wit)
 POST /rooms/{code}/end             host calls this when the timer hits 0
 POST /rooms/{code}/reset           "Play again": back to lobby, scores to 0
 POST /rooms/{code}/begin           themed round: end the AWS theme intro (timer or Skip)

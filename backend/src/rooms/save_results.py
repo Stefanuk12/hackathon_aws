@@ -54,8 +54,6 @@ def handler(event, context):
             if not entry:
                 continue
             extra = {"rank": r["rank"], "score": r["score"], "points": r["points"], "roast": r["roast"]}
-            if "survived" in r:
-                extra["survived"] = bool(r["survived"])
             if r["playerId"] in ghosts:
                 extra["ghost"] = True
             if entry.get("s3Key"):

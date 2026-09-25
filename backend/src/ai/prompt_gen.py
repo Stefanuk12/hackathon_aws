@@ -9,13 +9,13 @@ PROMPTS = Path(__file__).parent / "prompts"
 # Draw keeps the original prompt_gen.txt; text modes have their own templates.
 SYSTEM = {
     "draw": (PROMPTS / "prompt_gen.txt").read_text(),
-    "survive": (PROMPTS / "prompt_gen_survive.txt").read_text(),
+    "learn": (PROMPTS / "prompt_gen_learn.txt").read_text(),
     "wit": (PROMPTS / "prompt_gen_wit.txt").read_text(),
 }
 
 
 def generate_prompt(previous_prompts=(), theme=None, mode="draw"):
-    """Returns one short prompt for the round's mode ("draw" | "survive" | "wit") that isn't in previous_prompts."""
+    """Returns one short prompt for the round's mode ("draw" | "learn" | "wit") that isn't in previous_prompts."""
     text = f"Previous prompts: {list(previous_prompts)}"
     if theme:
         text += f"\nTheme: {theme}"

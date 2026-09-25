@@ -9,9 +9,9 @@ from shared.themes import INTRO_SECONDS, is_themed, pick_theme, prompt_theme, pu
 
 ROUND_SECONDS = 60
 
-MODES = ("draw", "survive", "wit")
+MODES = ("draw", "learn", "wit")
 # "mixed" cycles these, so a 3-round game shows all three.
-MIXED_ORDER = ("draw", "survive", "wit")
+MIXED_ORDER = ("draw", "learn", "wit")
 
 # Used only if Bedrock is down, so the game keeps going.
 FALLBACK_PROMPTS = {
@@ -23,11 +23,11 @@ FALLBACK_PROMPTS = {
         "A dog driving a bus",
         "A shark afraid of water",
     ],
-    "survive": [
-        "You wake up in a lift with a hungry bear.",
-        "The floor is lava and you're wearing socks.",
-        "Zombies burst into your 9am lecture.",
-        "A goose has declared war on you personally.",
+    "learn": [
+        "What does Amazon S3 actually store, and how do you get things back out?",
+        "What problem does AWS Lambda solve for you?",
+        "When would you reach for Amazon DynamoDB instead of a normal database?",
+        "What is Amazon Bedrock for?",
     ],
     "wit": [
         "The worst thing to say in a job interview",

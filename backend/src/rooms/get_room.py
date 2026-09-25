@@ -58,7 +58,6 @@ def handler(event, context):
                 "roast": e["roast"],
                 # Drawing rounds carry an image; Survive / Quick Wit carry the typed answer.
                 **({"imageUrl": e.get("imageUrl", "")} if "s3Key" in e else {"text": e.get("text", "")}),
-                **({"survived": bool(e["survived"])} if "survived" in e else {}),
                 **({"ghost": True} if e.get("ghost") else {}),
             }
             for pid, e in judged

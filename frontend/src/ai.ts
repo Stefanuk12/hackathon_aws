@@ -12,13 +12,13 @@ const SHARED_JUDGING = ["Calculating how disappointed to be...", "Consulting 175
 
 export const JUDGING_LINES: Record<GameMode, string[]> = {
   draw: ["ANALYSING SCRIBBLES...", "Detecting crimes against art...", ...SHARED_JUDGING],
-  survive: ["SIMULATING YOUR SURVIVAL...", "Calculating odds of death...", "Deciding who lives...", ...SHARED_JUDGING],
+  learn: ["MARKING YOUR ANSWERS...", "Checking the documentation...", "Deciding who was paying attention...", ...SHARED_JUDGING],
   wit: ["READING YOUR JOKES...", "Laughing internally. Maybe...", "Measuring comedic damage...", ...SHARED_JUDGING],
 };
 
 export const ROUND_INTRO_LINES: Record<GameMode, string[]> = {
   draw: ["Your prompt. Draw it. I'll be watching.", "Draw this. Try not to embarrass yourselves."],
-  survive: ["A situation. Tell me how you survive. I'll decide if you do.", "Type your plan. Choose your last words carefully."],
+  learn: ["A question about AWS. Let's see who was listening.", "Quiz time. Best guess counts for something."],
   wit: ["Make me laugh. I dare you.", "Your funniest answer, please. I have low expectations."],
 };
 

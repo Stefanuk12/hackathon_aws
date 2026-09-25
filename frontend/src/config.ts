@@ -51,13 +51,13 @@ export const MODES: Record<GameMode, ModeInfo> = {
     instruction: "Draw this",
     noun: "drawings",
   },
-  survive: {
-    name: "Survive",
-    emoji: "☠️",
-    blurb: "Type how you'd survive. The AI decides who lives.",
-    instruction: "Survive this",
-    noun: "plans",
-    placeholder: "How do you survive?",
+  learn: {
+    name: "Learn",
+    emoji: "🎓",
+    blurb: "Answer a question about an AWS service. The AI marks how close you got.",
+    instruction: "Answer this",
+    noun: "answers",
+    placeholder: "Your best guess…",
   },
   wit: {
     name: "Quick Wit",
@@ -72,11 +72,11 @@ export const MODES: Record<GameMode, ModeInfo> = {
 export const MIXED: Omit<ModeInfo, "instruction" | "noun"> = {
   name: "Mixed",
   emoji: "🔀",
-  blurb: "A different mode every round: Draw, then Survive, then Quick Wit.",
+  blurb: "A different mode every round: Draw, then Learn, then Quick Wit.",
 };
 
 export const DEFAULT_MODE: ModeSetting = "mixed";
-export const MODE_SETTINGS: ModeSetting[] = ["mixed", "draw", "survive", "wit"];
+export const MODE_SETTINGS: ModeSetting[] = ["mixed", "draw", "learn", "wit"];
 export const settingInfo = (m: ModeSetting) => (m === "mixed" ? MIXED : MODES[m]);
 
 /** Base URL phones use to join (QR code). Set VITE_PUBLIC_URL when the host screen isn't on the public URL. */

@@ -13,7 +13,7 @@
     "promptHint": "buckets, storing and losing things, overflowing storage",
     "examples": {
       "draw": "A bucket overflowing with cat photos",
-      "survive": "Your S3 bucket was accidentally public. The internet has found it.",
+      "learn": "What does Amazon S3 store, and how do you get things back out?",
       "wit": "The weirdest thing someone has stored in an S3 bucket"
     }
   },
@@ -31,7 +31,7 @@
     "promptHint": "functions, cold starts, running fast, events",
     "examples": {
       "draw": "A tiny function sprinting to finish before its timeout",
-      "survive": "Your Lambda function has a cold start. In the middle of the live demo.",
+      "learn": "What does AWS Lambda let you avoid managing?",
       "wit": "What a Lambda function does between invocations"
     }
   },
@@ -49,7 +49,7 @@
     "promptHint": "tables, keys, speed, organising huge amounts of things",
     "examples": {
       "draw": "A robot librarian sorting a billion books at lightning speed",
-      "survive": "Your DynamoDB table is throttling on launch day. The queue is out the door.",
+      "learn": "When would you pick DynamoDB over a traditional SQL database?",
       "wit": "A terrible name for a partition key"
     }
   },
@@ -67,7 +67,7 @@
     "promptHint": "AI, robots, models, the AI judge itself",
     "examples": {
       "draw": "A caveman chatting with an AI on a stone tablet",
-      "survive": "The AI judge has become self-aware and has opinions about your art.",
+      "learn": "What does Amazon Bedrock give you access to?",
       "wit": "What the AI really thinks of humans"
     }
   },
@@ -85,7 +85,7 @@
     "promptHint": "voices, parrots, talking, announcements",
     "examples": {
       "draw": "A parrot reading the evening news",
-      "survive": "A robot voice starts narrating your life. Out loud. In public.",
+      "learn": "What does Amazon Polly turn text into?",
       "wit": "The worst thing to make a text-to-speech voice say"
     }
   },
@@ -103,7 +103,7 @@
     "promptHint": "flowcharts, steps, retries, infinite loops",
     "examples": {
       "draw": "A robot stuck in an infinite loop on a flowchart",
-      "survive": "Your workflow is stuck retrying forever. Each retry costs you a sandwich.",
+      "learn": "What is AWS Step Functions for when you have several steps?",
       "wit": "A step that should never be in any workflow"
     }
   },
@@ -121,7 +121,7 @@
     "promptHint": "delivery, speed, the whole world visiting at once",
     "examples": {
       "draw": "A delivery pigeon with a jetpack",
-      "survive": "Your site goes viral and the entire planet visits at once.",
+      "learn": "How does Amazon CloudFront make a website load faster?",
       "wit": "The worst thing to cache at the edge"
     }
   },
@@ -139,7 +139,7 @@
     "promptHint": "servers, instances, forgetting to turn things off, big bills",
     "examples": {
       "draw": "A server rack on a beach holiday",
-      "survive": "You forgot to turn off a giant EC2 instance. The bill has arrived.",
+      "learn": "What does Amazon EC2 give you, and how is it billed?",
       "wit": "A name for an instance type that doesn't exist yet"
     }
   },
@@ -157,7 +157,7 @@
     "promptHint": "cameras, recognising things, labels, getting it wrong",
     "examples": {
       "draw": "A robot eye judging a fashion show",
-      "survive": "Face recognition thinks you're a potato. Security is on the way.",
+      "learn": "What can Amazon Rekognition find in an image?",
       "wit": "Something an image AI should never label"
     }
   },
@@ -175,7 +175,7 @@
     "promptHint": "real-time messages, broadcasting, everyone getting a notification at once",
     "examples": {
       "draw": "Two phones sending each other messages at lightning speed",
-      "survive": "Real-time updates freeze mid-game. Every screen is stuck on the same frame.",
+      "learn": "What does AWS AppSync Events let a server push to clients?",
       "wit": "The worst message to broadcast to every phone at once"
     }
   },

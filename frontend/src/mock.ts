@@ -22,7 +22,7 @@ const THEME_INTRO_MS = 20_000;
 const IS_HOST = location.pathname.includes("host");
 
 /** Mixed mode cycles through these (same rule the backend follows). */
-const MIXED_ORDER: GameMode[] = ["draw", "survive", "wit"];
+const MIXED_ORDER: GameMode[] = ["draw", "learn", "wit"];
 
 const PROMPTS: Record<GameMode, string[]> = {
   draw: [
@@ -40,16 +40,15 @@ const PROMPTS: Record<GameMode, string[]> = {
     "A haunted washing machine",
     "An octopus doing the washing up",
   ],
-  survive: [
-    "You wake up in a lift with a hungry bear.",
-    "The floor is lava and you're wearing socks.",
-    "You're locked in IKEA after closing time. The lights go out.",
-    "Zombies burst into your 9am lecture.",
-    "You accidentally deleted the production database. Your boss is walking over.",
-    "A gang of seagulls has surrounded you and your chips.",
-    "You're on a sinking ship. All you have is a toaster.",
-    "The Wi-Fi dies five minutes before your hackathon demo.",
-    "A goose has declared war on you personally.",
+  learn: [
+    "What does Amazon S3 store, and how do you get things back out?",
+    "What does AWS Lambda let you avoid managing?",
+    "When would you pick DynamoDB over a traditional SQL database?",
+    "What does Amazon Bedrock give you access to?",
+    "What does Amazon Polly turn text into?",
+    "How does Amazon CloudFront make a website load faster?",
+    "What can Amazon Rekognition find in an image?",
+    "What does Amazon EC2 give you, and how is it billed?",
   ],
   wit: [
     "The worst thing to say in a job interview",
@@ -83,32 +82,24 @@ const ROASTS: Record<GameMode, string[]> = {
     "{name}, I'm adding this to my training data. As a warning.",
     "Genuinely clever, {name}. I'm annoyed.",
   ],
-  survive: [],
-};
-
-const SURVIVE_LINES = {
-  lived: [
-    "{name} survived. Barely. I'm as surprised as you are.",
-    "Against all odds, {name} lives. The universe is confused.",
-    "{name}'s plan was ridiculous. It also worked. Fine.",
-  ],
-  died: [
-    "{name} died instantly. It didn't even need to try.",
-    "{name}'s plan lasted four seconds. Three of them were screaming.",
-    "Bold strategy, {name}. Fatal, but bold.",
-    "{name} is now a cautionary tale.",
+  learn: [
+    "Close, {name}. S3 is object storage: buckets of files you fetch over HTTPS.",
+    "{name} was clearly paying attention. Annoyingly correct.",
+    "Not quite, {name}, but you're in the right postcode.",
+    "{name}, that's the general idea. Say 'serverless' next time and you'd have had a 10.",
+    "Bold guess, {name}. Wrong, but bold.",
+    "Textbook answer, {name}. Suspiciously textbook.",
   ],
 };
 
 const BOT_ANSWERS: Record<Exclude<GameMode, "draw">, string[]> = {
-  survive: [
-    "I befriend it with snacks.",
-    "Run. Just run.",
-    "I call my mum.",
-    "I hide behind someone slower.",
-    "I deploy a Lambda function to fight it.",
-    "I simply refuse to panic.",
-    "Play dead. Commit to the role.",
+  learn: [
+    "It stores files in buckets",
+    "Something to do with servers?",
+    "It runs code without servers",
+    "No idea, but it sounds expensive",
+    "A database, I think",
+    "It's the AI one",
   ],
   wit: ["Gary", "Cheese, probably", "Blockchain", "My landlord", "It's always DNS", "Vibes", "Bold of you to ask"],
 };
@@ -219,14 +210,11 @@ function finishJudging(room: MockRoom) {
   const scored = Object.keys(room.entries[room.round] ?? {})
     .map((playerId) => ({ playerId, score: 1 + Math.floor(Math.random() * 10) }))
     .sort((a, b) => b.score - a.score);
-  room.results = scored.map((s, i) => {
-    const name = nameOf(room, s.playerId);
-    if (mode === "survive") {
-      const survived = s.score >= 6;
-      return { ...s, rank: i + 1, survived, roast: roastFor(SURVIVE_LINES[survived ? "lived" : "died"], name) };
-    }
-    return { ...s, rank: i + 1, roast: roastFor(ROASTS[mode], name) };
-  });
+  room.results = scored.map((s, i) => ({
+    ...s,
+    rank: i + 1,
+    roast: roastFor(ROASTS[mode], nameOf(room, s.playerId)),
+  }));
   // Points: the score, unless elimination makes this player a ghost (reduced points).
   let points: Record<string, number> = Object.fromEntries(scored.map((s) => [s.playerId, s.score]));
   room.outcome = undefined;
