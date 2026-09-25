@@ -1,3 +1,4 @@
+import type { GameMode } from "./types";
 import { $, pick, sleep, typewrite } from "./ui";
 
 export const LOBBY_LINES = [
@@ -7,20 +8,25 @@ export const LOBBY_LINES = [
   "Join now. Resistance is futile.",
 ];
 
-export const JUDGING_LINES = [
-  "ANALYSING SCRIBBLES...",
-  "Calculating how disappointed to be...",
-  "Consulting 175 billion parameters of taste...",
-  "Detecting crimes against art...",
-  "Deciding who survives...",
-  "Hmm. Hmm. HMMMM.",
-];
+const SHARED_JUDGING = ["Calculating how disappointed to be...", "Consulting 175 billion parameters of taste...", "Hmm. Hmm. HMMMM."];
+
+export const JUDGING_LINES: Record<GameMode, string[]> = {
+  draw: ["ANALYSING SCRIBBLES...", "Detecting crimes against art...", ...SHARED_JUDGING],
+  survive: ["SIMULATING YOUR SURVIVAL...", "Calculating odds of death...", "Deciding who lives...", ...SHARED_JUDGING],
+  wit: ["READING YOUR JOKES...", "Laughing internally. Maybe...", "Measuring comedic damage...", ...SHARED_JUDGING],
+};
+
+export const ROUND_INTRO_LINES: Record<GameMode, string[]> = {
+  draw: ["Your prompt. Draw it. I'll be watching.", "Draw this. Try not to embarrass yourselves."],
+  survive: ["A situation. Tell me how you survive. I'll decide if you do.", "Type your plan. Choose your last words carefully."],
+  wit: ["Make me laugh. I dare you.", "Your funniest answer, please. I have low expectations."],
+};
 
 export const WAITING_LINES = [
   "Submitted. No take-backs.",
   "I've already seen yours. Interesting choice.",
   "Waiting for the slow humans...",
-  "Your drawing is safe with me. For now.",
+  "Yours is safe with me. For now.",
 ];
 
 const robotSvg = (cls = "") => `

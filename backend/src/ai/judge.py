@@ -1,4 +1,7 @@
-"""Rank all drawings of a round against the prompt in ONE Bedrock call."""
+"""Rank all entries of a round against the prompt in ONE Bedrock call.
+
+Draw rounds are judged on images (with AI reference drawings); Survive and Quick Wit rounds on text.
+"""
 
 import json
 import os
@@ -11,7 +14,9 @@ from ai.reference import generate_references, image_format
 from shared import storage
 from shared.db import load_room, round_entries
 
-TEMPLATE = (Path(__file__).parent / "prompts" / "judge.txt").read_text()
+PROMPTS = Path(__file__).parent / "prompts"
+TEMPLATE = (PROMPTS / "judge.txt").read_text()
+TEXT_TEMPLATES = {m: (PROMPTS / f"judge_{m}.txt").read_text() for m in ("survive", "wit")}
 
 
 def judge(prompt, images, references=()):
@@ -39,17 +44,37 @@ def judge(prompt, images, references=()):
     return _parse(reply_text(resp), len(images))
 
 
-def _parse(text, n):
-    """Pull the JSON out of Claude's reply and check every drawing got ranked.
+def judge_text(mode, prompt, answers):
+    """Survive / Quick Wit rounds. answers: list of strings.
+
+    Returns [{answer, rank, score, roast}] where answer is 1-based, plus "survived" for mode "survive".
+    """
+    listing = "\n".join(f'Answer {i}: "{a or "(no answer)"}"' for i, a in enumerate(answers, start=1))
+    system = TEXT_TEMPLATES[mode].replace("{prompt}", prompt).replace("{n}", str(len(answers)))
+    resp = bedrock.converse(
+        modelId=os.environ["TEXT_MODEL_ID"],
+        system=[{"text": system}],
+        messages=[{"role": "user", "content": [{"text": f"{listing}\n\nJudge now. JSON only."}]}],
+        inferenceConfig={"maxTokens": 4000},
+    )
+    results = _parse(reply_text(resp), len(answers), key="answer")
+    if mode == "survive":
+        for r in results:
+            r["survived"] = bool(r.get("survived", r["score"] >= 6))
+    return results
+
+
+def _parse(text, n, key="drawing"):
+    """Pull the JSON out of Claude's reply and check every entry got ranked.
 
     Raises ValueError if not; the state machine then retries the Judge step.
     """
     text = text.replace("```json", "").replace("```", "")
     results = json.loads(text[text.index("{") : text.rindex("}") + 1])["results"]
 
-    drawings = sorted(r["drawing"] for r in results)
-    if drawings != list(range(1, n + 1)):
-        raise ValueError(f"Judge ranked drawings {drawings}, expected 1..{n}")
+    numbers = sorted(r[key] for r in results)
+    if numbers != list(range(1, n + 1)):
+        raise ValueError(f"Judge ranked {key}s {numbers}, expected 1..{n}")
 
     for r in results:
         r["score"] = max(0, min(10, int(r["score"])))
@@ -88,12 +113,16 @@ def _references_or_none(prompt):
 def handler(event, context):
     """Step Functions task. Input: {code, round}.
 
-    Output: {results: [{playerId, name, rank, score, roast}], references: [url, ...]}
+    Output: {results: [{playerId, name, rank, score, roast, survived?}], references: [url, ...]}
     """
     code, round_no = event["code"], event["round"]
     meta, players, entries = load_room(code)
     names = {pid: p["name"] for pid, p in players.items()}
     names["ai"] = "The AI"
+    mode = meta.get("roundMode", "draw")
+    if mode != "draw":
+        return _handle_text_round(mode, meta, entries, names, round_no)
+
     entries = [(pid, e) for pid, e in round_entries(entries, round_no).items() if e.get("s3Key")]
 
     if not entries:
@@ -140,3 +169,26 @@ def _save_references(code, round_no, references):
     except Exception as e:
         print("Could not save reference images:", e)
     return urls
+
+
+def _handle_text_round(mode, meta, entries, names, round_no):
+    """Survive / Quick Wit: entries carry "text" instead of "s3Key", and there are no reference images."""
+    entries = [(pid, e) for pid, e in round_entries(entries, round_no).items() if "text" in e]
+    if not entries:
+        return {"results": [], "references": []}
+
+    random.shuffle(entries)
+    results = []
+    for r in judge_text(mode, meta["prompt"], [e[1]["text"] for e in entries]):
+        player_id = entries[r["answer"] - 1][0]
+        result = {
+            "playerId": player_id,
+            "name": names.get(player_id, "Mystery player"),
+            "rank": r["rank"],
+            "score": r["score"],
+            "roast": r["roast"],
+        }
+        if "survived" in r:
+            result["survived"] = r["survived"]
+        results.append(result)
+    return {"results": results, "references": []}

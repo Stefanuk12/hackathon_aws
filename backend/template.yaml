@@ -172,6 +172,14 @@ Resources:
       Events:
         Api: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/rooms/{code}/reset" } }
 
+  BeginRoundFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: rooms/begin_round.handler
+      Policies: [{ DynamoDBCrudPolicy: { TableName: !Ref GameTable } }]
+      Events:
+        Api: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/rooms/{code}/begin" } }
+
   # ---------- Judging pipeline (Step Functions) ----------
   JudgeFunction:
     Type: AWS::Serverless::Function

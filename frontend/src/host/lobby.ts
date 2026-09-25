@@ -1,13 +1,30 @@
 import QRCode from "qrcode";
 import { aiHtml, aiLoop, LOBBY_LINES } from "../ai";
 import { api, MOCK } from "../api";
-import { DEFAULT_ROUNDS, joinUrl, MAX_ROUNDS, TAGLINE } from "../config";
+import {
+  DEFAULT_MODE,
+  DEFAULT_ROUNDS,
+  DEFAULT_THEME_EVERY,
+  ELIMINATION,
+  joinUrl,
+  MAX_ROUNDS,
+  MODE_SETTINGS,
+  settingInfo,
+  TAGLINE,
+  THEME_OPTIONS,
+} from "../config";
 import { mockAddBot } from "../mock";
 import type { ScreenFactory } from "../router";
-import type { Room } from "../types";
-import { $, esc, logoHtml, syncChips, toast } from "../ui";
+import { throneScene } from "../scenes";
+import type { ModeSetting, Room } from "../types";
+import { $, bindStepper, chipState, esc, logoHtml, stepperHtml, syncChips, toast } from "../ui";
 
+// Remember the host's choices across games in this tab.
 const ROUNDS_KEY = "host:rounds";
+const MODE_KEY = "host:mode";
+const ELIM_KEY = "host:elimination";
+const REVIVE_KEY = "host:reviveAfter";
+const THEME_KEY = "host:themeEvery";
 
 export const lobbyScreen =
   (code: string): ScreenFactory =>
@@ -15,6 +32,7 @@ export const lobbyScreen =
     const url = joinUrl(code);
     el.innerHTML = `
     <main class="host-screen host-lobby">
+      ${throneScene()}
       <header class="host-head">
         ${logoHtml()}
         <p class="tagline">${esc(TAGLINE)}</p>
@@ -30,16 +48,45 @@ export const lobbyScreen =
         <p class="empty-hint">Scan the QR code with your phone to join.</p>
         <div class="chips" data-players></div>
       </section>
+      <section class="card settings">
+        <div class="settings-row">
+          <span class="lbl">Game mode</span>
+          <div class="mode-picker" role="radiogroup" aria-label="Game mode">
+            ${MODE_SETTINGS.map((m) => {
+              const info = settingInfo(m);
+              return `<button type="button" class="mode-btn" role="radio" data-mode="${m}">
+                <span class="mode-emoji" aria-hidden="true">${info.emoji}</span>${esc(info.name)}
+              </button>`;
+            }).join("")}
+          </div>
+        </div>
+        <p class="mode-blurb" aria-live="polite"></p>
+        <div class="settings-row">
+          <span class="lbl">☁️ AWS themes</span>
+          <div class="theme-picker mode-picker" role="radiogroup" aria-label="Themed rounds">
+            ${THEME_OPTIONS.map((o) => `<button type="button" class="mode-btn" role="radio" data-theme-every="${o.every}">${esc(o.label)}</button>`).join("")}
+          </div>
+        </div>
+        <div class="settings-row">
+          <span class="lbl">Rounds</span>
+          ${stepperHtml("rounds", "Number of rounds")}
+          <span class="lbl elim-lbl">💀 Elimination</span>
+          <button type="button" class="switch" role="switch" data-elim aria-label="Elimination"><span></span></button>
+          <div class="revive-setting">
+            <span class="muted-ink">Revive after</span>
+            ${stepperHtml("revive", "Good rounds in a row to revive")}
+            <span class="muted-ink" data-revive-unit></span>
+          </div>
+        </div>
+        <p class="elim-rules" hidden>
+          Lowest score each round dies. Ghosts keep playing for half points, and come back after
+          scoring ${ELIMINATION.reviveScore}+ in enough rounds in a row.
+        </p>
+      </section>
       <footer class="host-foot">
         ${aiHtml("ai-lg")}
         <div class="row">
           ${MOCK ? `<button class="btn btn-ghost" data-bot>+ Add bot</button>` : ""}
-          <div class="stepper" role="group" aria-label="Number of rounds">
-            <span class="stepper-label">Rounds</span>
-            <button type="button" class="stepper-btn" data-dec aria-label="Fewer rounds">−</button>
-            <output class="stepper-value" aria-live="polite"></output>
-            <button type="button" class="stepper-btn" data-inc aria-label="More rounds">+</button>
-          </div>
           <button class="btn btn-big" data-start>Start game ▶</button>
         </div>
       </footer>
@@ -50,27 +97,74 @@ export const lobbyScreen =
       .catch(() => toast("Couldn't draw the QR code"));
     aiLoop(el, LOBBY_LINES, 4000);
 
-    // Remember the host's choice across games in this tab.
-    let rounds = Number(sessionStorage.getItem(ROUNDS_KEY)) || room.totalRounds || DEFAULT_ROUNDS;
-    const value = $(el, ".stepper-value");
-    const dec = $<HTMLButtonElement>(el, "[data-dec]");
-    const inc = $<HTMLButtonElement>(el, "[data-inc]");
-    const setRounds = (n: number) => {
-      rounds = Math.min(MAX_ROUNDS, Math.max(1, n));
-      value.textContent = String(rounds);
-      dec.disabled = rounds <= 1;
-      inc.disabled = rounds >= MAX_ROUNDS;
-      sessionStorage.setItem(ROUNDS_KEY, String(rounds));
+    // ---- Game mode ----
+    const savedMode = sessionStorage.getItem(MODE_KEY) as ModeSetting | null;
+    let mode: ModeSetting = savedMode && MODE_SETTINGS.includes(savedMode) ? savedMode : room.mode || DEFAULT_MODE;
+    const setMode = (m: ModeSetting) => {
+      mode = m;
+      el.querySelectorAll<HTMLElement>("[data-mode]").forEach((b) => {
+        const on = b.dataset.mode === m;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-checked", String(on));
+      });
+      $(el, ".mode-blurb").textContent = settingInfo(m).blurb;
+      sessionStorage.setItem(MODE_KEY, m);
     };
-    setRounds(rounds);
-    dec.addEventListener("click", () => setRounds(rounds - 1));
-    inc.addEventListener("click", () => setRounds(rounds + 1));
+    setMode(mode);
+    $(el, ".mode-picker").addEventListener("click", (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-mode]");
+      if (btn) setMode(btn.dataset.mode as ModeSetting);
+    });
+
+    // ---- AWS themes ----
+    const savedTheme = sessionStorage.getItem(THEME_KEY);
+    let themeEvery = savedTheme === null ? room.themeEvery ?? DEFAULT_THEME_EVERY : Number(savedTheme);
+    const setThemeEvery = (n: number) => {
+      themeEvery = n;
+      el.querySelectorAll<HTMLElement>("[data-theme-every]").forEach((b) => {
+        const on = Number(b.dataset.themeEvery) === n;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-checked", String(on));
+      });
+      sessionStorage.setItem(THEME_KEY, String(n));
+    };
+    setThemeEvery(themeEvery);
+    $(el, ".theme-picker").addEventListener("click", (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-theme-every]");
+      if (btn) setThemeEvery(Number(btn.dataset.themeEvery));
+    });
+
+    // ---- Rounds ----
+    const rounds = bindStepper(el, "rounds", 1, MAX_ROUNDS,
+      Number(sessionStorage.getItem(ROUNDS_KEY)) || room.totalRounds || DEFAULT_ROUNDS,
+      (n) => sessionStorage.setItem(ROUNDS_KEY, String(n)));
+
+    // ---- Elimination ----
+    const savedElim = sessionStorage.getItem(ELIM_KEY);
+    let elimination = savedElim === null ? room.elimination ?? ELIMINATION.defaultOn : savedElim === "true";
+    const toggle = $<HTMLButtonElement>(el, "[data-elim]");
+    const setElimination = (on: boolean) => {
+      elimination = on;
+      toggle.setAttribute("aria-checked", String(on));
+      $(el, ".revive-setting").classList.toggle("off", !on);
+      el.querySelectorAll<HTMLButtonElement>('[data-stepper="revive"] button').forEach((b) => (b.dataset.off = String(!on)));
+      $(el, ".elim-rules").hidden = !on;
+      sessionStorage.setItem(ELIM_KEY, String(on));
+    };
+    toggle.addEventListener("click", () => setElimination(!elimination));
+    const reviveAfter = bindStepper(el, "revive", 1, ELIMINATION.maxReviveAfter,
+      Number(sessionStorage.getItem(REVIVE_KEY)) || room.reviveAfter || ELIMINATION.defaultReviveAfter,
+      (n) => {
+        sessionStorage.setItem(REVIVE_KEY, String(n));
+        $(el, "[data-revive-unit]").textContent = n === 1 ? "good round" : "good rounds in a row";
+      });
+    setElimination(elimination);
 
     const start = $<HTMLButtonElement>(el, "[data-start]");
     start.addEventListener("click", async () => {
       start.disabled = true;
       try {
-        await api.startRound(code, rounds);
+        await api.startRound(code, { totalRounds: rounds(), mode, elimination, reviveAfter: reviveAfter(), themeEvery });
       } catch (err) {
         toast(err instanceof Error ? err.message : "Couldn't start the round");
         start.disabled = false;
@@ -81,7 +175,7 @@ export const lobbyScreen =
     const update = (room: Room) => {
       $(el, "[data-count]").textContent = `Players (${room.players.length})`;
       $(el, ".empty-hint").hidden = room.players.length > 0;
-      syncChips($(el, "[data-players]"), room.players);
+      syncChips($(el, "[data-players]"), room.players, (p) => chipState(p, false));
       start.disabled = room.players.length === 0;
     };
     update(room);

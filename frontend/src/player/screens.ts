@@ -1,7 +1,9 @@
 import { aiHtml, aiLoop, aiSay, JUDGING_LINES, WAITING_LINES } from "../ai";
+import { api } from "../api";
+import { ELIMINATION, MODES, TEXT_LIMIT } from "../config";
 import type { ScreenFactory } from "../router";
 import { isGameOver, type Room } from "../types";
-import { $, avatarHtml, confetti, countdown, esc, logoHtml, pick, syncChips, toast } from "../ui";
+import { $, avatarHtml, chipState, confetti, countdown, entryHtml, esc, logoHtml, pick, stampHtml, syncChips, toast } from "../ui";
 import { createPad } from "./canvas";
 import { submitDrawing } from "./upload";
 
@@ -41,18 +43,96 @@ export const lobbyScreen =
     return { update };
   };
 
-export const drawingScreen =
+/** Elimination: remind ghosts of the rules and their revive progress. */
+function ghostBanner(ctx: PlayerCtx, room: Room) {
+  const player = me(ctx, room);
+  if (!room.elimination || player?.alive !== false) return "";
+  const left = room.reviveAfter - (player.streak ?? 0);
+  return `
+      <div class="ghost-banner" role="status">
+        <strong>👻 You're a ghost</strong>
+        <span>Half points. Score ${ELIMINATION.reviveScore}+ ${left === 1 ? "this round" : `${left} rounds in a row`} to revive.</span>
+      </div>`;
+}
+
+function promptHeader(room: Room) {
+  const mode = MODES[room.roundMode ?? "draw"];
+  return `
+      <header class="draw-head">
+        <div class="prompt-card">
+          <span class="prompt-label">${mode.emoji} Round ${room.round}/${room.totalRounds} · ${esc(mode.instruction)}</span>
+          ${room.theme ? `<span class="theme-chip">${esc(room.theme.emoji)} ${esc(room.theme.service)} theme</span>` : ""}
+          <strong>${esc(room.prompt ?? "")}</strong>
+        </div>
+        <div class="timer" aria-label="Seconds left"></div>
+      </header>`;
+}
+
+/** Draw rounds get the drawing pad; Survive / Quick Wit get a text box. */
+export const roundScreen =
+  (ctx: PlayerCtx): ScreenFactory =>
+  (el, room) =>
+    (room.roundMode ?? "draw") === "draw" ? drawingScreen(ctx)(el, room) : textScreen(ctx)(el, room);
+
+const textScreen =
+  (ctx: PlayerCtx): ScreenFactory =>
+  (el, room) => {
+    const mode = MODES[room.roundMode ?? "wit"];
+    el.innerHTML = `
+    <main class="screen draw-screen">
+      ${promptHeader(room)}
+      ${ghostBanner(ctx, room)}
+      <label class="answer-box">
+        <span class="sr-only">Your answer</span>
+        <textarea class="field answer" maxlength="${TEXT_LIMIT}" rows="5"
+                  placeholder="${esc(mode.placeholder ?? "")}" autocomplete="off"></textarea>
+        <span class="char-count" aria-live="polite"></span>
+      </label>
+      <button class="btn btn-big btn-block btn-go">Send it ✉️</button>
+    </main>`;
+
+    const box = $<HTMLTextAreaElement>(el, "textarea");
+    const counter = $(el, ".char-count");
+    const button = $<HTMLButtonElement>(el, ".btn-go");
+    const updateCount = () => {
+      const left = TEXT_LIMIT - box.value.length;
+      counter.textContent = String(left);
+      counter.classList.toggle("low", left <= 20);
+    };
+    box.addEventListener("input", updateCount);
+    updateCount();
+    box.focus();
+
+    let sending = false;
+    const send = async () => {
+      if (sending || ctx.submitted.has(room.round)) return;
+      sending = true;
+      button.disabled = true;
+      button.textContent = "Sending…";
+      try {
+        await api.submit(ctx.code, ctx.playerId, { text: box.value.trim() });
+        ctx.submitted.add(room.round);
+        ctx.rerender();
+      } catch (err) {
+        sending = false;
+        button.disabled = false;
+        button.textContent = "Try again";
+        toast(err instanceof Error ? err.message : "Couldn't send your answer");
+      }
+    };
+    button.addEventListener("click", send);
+    // Time's up: send whatever has been typed. Silence gets judged too.
+    const stop = countdown($(el, ".timer"), room.endsAt ?? Date.now() + 60_000, send);
+    return { unmount: stop };
+  };
+
+const drawingScreen =
   (ctx: PlayerCtx): ScreenFactory =>
   (el, room) => {
     el.innerHTML = `
     <main class="screen draw-screen">
-      <header class="draw-head">
-        <div class="prompt-card">
-          <span class="prompt-label">Round ${room.round}/${room.totalRounds} · Draw this</span>
-          <strong>${esc(room.prompt ?? "")}</strong>
-        </div>
-        <div class="timer" aria-label="Seconds left"></div>
-      </header>
+      ${promptHeader(room)}
+      ${ghostBanner(ctx, room)}
       <div class="pad"></div>
       <button class="btn btn-big btn-block btn-go">Done! Send it ✏️</button>
     </main>`;
@@ -84,6 +164,26 @@ export const drawingScreen =
     return { unmount: stop };
   };
 
+/** Themed round intro on the phone: short version of what's on the big screen. */
+export const themeScreen = (): ScreenFactory => (el, room) => {
+  const theme = room.theme!;
+  const mode = MODES[room.roundMode ?? "draw"];
+  el.innerHTML = `
+    <main class="screen center">
+      <section class="card stack center-text theme-phone">
+        <span class="prompt-label">Themed round · starts in <span class="timer timer-inline"></span></span>
+        <div class="big-emoji" aria-hidden="true">${esc(theme.emoji)}</div>
+        <h2>${esc(theme.service)}</h2>
+        <p>${esc(theme.tagline)}</p>
+        <p class="theme-used"><span class="prompt-label">In Amacide</span>${esc(theme.inAmacide)}</p>
+        <p class="muted-ink">Get ready to ${room.roundMode === "draw" ? "draw" : "type"}! Next: ${mode.emoji} ${esc(mode.name)}</p>
+      </section>
+      <p class="tagline" style="text-align:center">👀 More on the big screen</p>
+    </main>`;
+  const stop = countdown($(el, ".timer"), room.themeEndsAt ?? Date.now() + 20_000);
+  return { unmount: stop };
+};
+
 export const sentScreen =
   (ctx: PlayerCtx): ScreenFactory =>
   (el, room) => {
@@ -102,20 +202,20 @@ export const sentScreen =
       const done = room.players.filter((p) => p.submitted || p.playerId === ctx.playerId).length;
       $(el, "[data-progress]").textContent = `${done} of ${room.players.length} drawings in`;
       syncChips($(el, "[data-players]"), room.players, (p) =>
-        p.submitted || p.playerId === ctx.playerId ? "done" : "waiting",
+        chipState({ ...p, submitted: p.submitted || p.playerId === ctx.playerId }),
       );
     };
     update(room);
     return { update };
   };
 
-export const judgingScreen = (): ScreenFactory => (el) => {
+export const judgingScreen = (): ScreenFactory => (el, room) => {
   el.innerHTML = `
     <main class="screen center">
       ${aiHtml("ai-lg", "scanning")}
       <p class="tagline" style="text-align:center">👀 Look at the big screen!</p>
     </main>`;
-  aiLoop(el, JUDGING_LINES);
+  aiLoop(el, JUDGING_LINES[room.roundMode ?? "draw"]);
   return {};
 };
 
@@ -126,6 +226,26 @@ export const resultsScreen =
     const mine = results.find((r) => r.playerId === ctx.playerId);
     const total = me(ctx, room)?.score ?? 0;
     const final = isGameOver(room);
+    const player = me(ctx, room);
+    const elim = room.elimination
+      ? room.outcome?.eliminated.includes(ctx.playerId)
+        ? `<section class="card stack center-text elim-card dead">
+             <div class="big-emoji">💀</div>
+             <h2>You've been eliminated</h2>
+             <p>Keep playing as a ghost for half points. Score ${ELIMINATION.reviveScore}+ ${room.reviveAfter === 1 ? "in a round" : `in ${room.reviveAfter} rounds in a row`} to revive.</p>
+           </section>`
+        : room.outcome?.revived.includes(ctx.playerId)
+          ? `<section class="card stack center-text elim-card revived">
+               <div class="big-emoji">🧟</div>
+               <h2>You're back from the dead!</h2>
+               <p>Full points again. Don't come last.</p>
+             </section>`
+          : player?.alive === false
+            ? `<section class="card stack center-text elim-card dead">
+                 <p><strong>👻 Still a ghost.</strong> Revive progress: ${player.streak ?? 0}/${room.reviveAfter}</p>
+               </section>`
+            : ""
+      : "";
     const overall = [...room.players].sort((a, b) => b.score - a.score).findIndex((p) => p.playerId === ctx.playerId) + 1;
     const footer = final
       ? `<section class="card stack center-text final-card">
@@ -140,12 +260,11 @@ export const resultsScreen =
     <main class="screen center player-result">
       <section class="card stack center-text">
         <div class="result-rank">#${mine.rank} <small>of ${results.length}</small></div>
-        <figure class="frame">
-          ${mine.imageUrl ? `<img src="${esc(mine.imageUrl)}" alt="Your drawing" />` : `<div class="blank">?</div>`}
-        </figure>
-        <span class="stamp ${mine.score >= 7 ? "good" : ""}">${mine.score}/10</span>
+        ${entryHtml(mine)}
+        ${stampHtml(mine)}
         <p>Total: <strong>${total} pts</strong></p>
       </section>
+      ${elim}
       ${aiHtml()}
       ${footer}
     </main>`
@@ -153,9 +272,10 @@ export const resultsScreen =
     <main class="screen center">
       <section class="card stack center-text">
         <div class="big-emoji">🙈</div>
-        <h2>No drawing, no score</h2>
+        <h2>Nothing sent, no score</h2>
         <p>Total: <strong>${total} pts</strong></p>
       </section>
+      ${elim}
       ${aiHtml()}
       ${footer}
     </main>`;

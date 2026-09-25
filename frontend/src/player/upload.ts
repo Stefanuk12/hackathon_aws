@@ -16,5 +16,5 @@ export async function submitDrawing(canvas: HTMLCanvasElement, code: string, pla
 
   const { url, key } = await api.uploadUrl(code, playerId);
   await api.putDrawing(url, image);
-  await api.submit(code, playerId, key);
+  await api.submit(code, playerId, { key });
 }
