@@ -46,29 +46,60 @@ Phones (HTML canvas) ──► CloudFront + S3 (static site)
 | `ROOM#<code>` | `PLAYER#<id>` | `name`, `score` |
 | `ROOM#<code>` | `ROUND#<n>#<playerId>` | `s3Key`, `rank`, `score`, `roast` |
 
-### HTTP API
+### HTTP API, realtime events and response shapes
+
+**[`contracts/`](contracts/) is the source of truth.** It holds [api.md](contracts/api.md), [events.md](contracts/events.md) and sample responses in [fixtures/](contracts/fixtures/).
 
 ```
 POST /rooms                        → {code}
 POST /rooms/{code}/join            {name} → {playerId}
+GET  /rooms/{code}                 → full room state (also the polling fallback)
 POST /rooms/{code}/start           → {round, prompt, endsAt}
 POST /rooms/{code}/upload-url      {playerId} → {url, key}
 POST /rooms/{code}/submit          {playerId, key}
-GET  /rooms/{code}                 → full room state (also the polling fallback)
+POST /rooms/{code}/end             host calls this when the timer hits 0
 ```
 
-### Realtime events (channel `/rooms/<code>`)
+## Project structure
 
-`player_joined` · `round_started` · `submission_in` · `judging` · `results_ready`
+Each folder has one owner, which keeps merge conflicts rare.
 
-### Judge output
-
-```json
-{
-  "results": [{ "playerId": "…", "rank": 1, "score": 8, "roast": "…" }],
-  "audioUrl": "https://…"
-}
 ```
+contracts/        ALL      API + events contract, JSON fixtures (frontend mocks read these)
+frontend/         1 + 2    Vite + TypeScript. index.html = phone, host.html = big screen
+  src/api.ts               fetch wrapper; VITE_MOCK=true serves contracts/fixtures
+  src/realtime.ts          polling now, AppSync Events later
+  src/player/     1        canvas, upload, screens
+  src/host/       2        lobby, reveal
+backend/          3        SAM stack (template.yaml), Python 3.12 Lambdas
+  src/shared/     3        DynamoDB keys, HTTP helpers, publish to AppSync Events
+  src/rooms/      3        API handlers + save_results (last step of judging)
+  src/ai/         4        prompt_gen, judge, host_voice, ai_player (stretch), prompts/*.txt
+  statemachine/   4        judge_round.asl.json: Judge → HostVoice → SaveResults
+  scripts/        4        test_judge.py: run the judge locally on samples/
+samples/          4        test drawings (.jpg) for tuning the judge
+pitch/            5        diagram, slides, demo script
+```
+
+Every handler is a stub that returns a response shaped like the contract, so the stack can be deployed and the frontend pointed at it straight away. Search for `TODO person N` to find your work.
+
+## Getting started
+
+```sh
+# Frontend (persons 1, 2)
+cd frontend && npm install
+npm run dev:mock                     # no backend needed
+cp .env.example .env.local           # later: fill from stack outputs, then `npm run dev`
+
+# Backend (person 3 deploys; region eu-west-2 in samconfig.toml)
+cd backend && sam build && sam deploy
+sam sync --watch                     # hot-redeploy while developing
+
+# Judge prompt tuning (person 4)
+cd backend && TEXT_MODEL_ID=<id> AWS_REGION=eu-west-2 python scripts/test_judge.py "A penguin running a lemonade stand"
+```
+
+`npm run dev` listens on the LAN, so phones on the same wifi can open `http://<laptop-ip>:5173`.
 
 ## Team
 
@@ -76,7 +107,7 @@ GET  /rooms/{code}                 → full room state (also the polling fallbac
 |---|---|---|
 | 1 | **Player frontend** | Phone UI: join, drawing canvas (brush, colours, undo, clear), timer, resize and upload via presigned URL |
 | 2 | **Host screen frontend** | Big-screen UI: lobby with QR code, countdown, results reveal with Polly audio |
-| 3 | **Backend / infra** | CDK/SAM stack, DynamoDB, Lambdas, realtime events, hosting. **Only person 3 deploys** |
+| 3 | **Backend / infra** | SAM stack, DynamoDB, Lambdas, realtime events, hosting. **Only person 3 deploys** |
 | 4 | **AI pipeline** | Prompt generation, judge prompt, Step Functions round-end flow, Polly, (stretch) Nova Canvas |
 | 5 | **Lead / pitch / QA** | Adapting to the theme, timekeeping, architecture diagram, slides, testing on real phones, backup video, helping whoever is blocked. **Decides what gets cut** |
 

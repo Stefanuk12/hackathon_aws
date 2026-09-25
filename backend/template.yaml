@@ -1,0 +1,217 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: AI Gartic Phone - AWS North x Northumbria Hackathon
+
+Parameters:
+  TextModelId:
+    Type: String
+    Default: eu.anthropic.claude-sonnet-4-5-20250929-v1:0 # TODO person 4: confirm model access + ID in region
+  ImageModelId:
+    Type: String
+    Default: amazon.nova-canvas-v1:0
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [arm64]
+    Timeout: 30
+    MemorySize: 512
+    CodeUri: src/
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref GameTable
+        BUCKET_NAME: !Ref DrawingsBucket
+        EVENTS_HTTP_DOMAIN: !GetAtt EventApi.Dns.Http
+        EVENTS_API_KEY: !GetAtt EventApiKey.ApiKey
+        TEXT_MODEL_ID: !Ref TextModelId
+        IMAGE_MODEL_ID: !Ref ImageModelId
+
+Resources:
+  # ---------- Storage ----------
+  GameTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: PK, AttributeType: S }
+        - { AttributeName: SK, AttributeType: S }
+      KeySchema:
+        - { AttributeName: PK, KeyType: HASH }
+        - { AttributeName: SK, KeyType: RANGE }
+
+  DrawingsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods: [GET, PUT]
+            AllowedOrigins: ["*"]
+            AllowedHeaders: ["*"]
+
+  # ---------- Realtime (AppSync Events) ----------
+  EventApi:
+    Type: AWS::AppSync::Api
+    Properties:
+      Name: ai-gartic-events
+      EventConfig:
+        AuthProviders: [{ AuthType: API_KEY }]
+        ConnectionAuthModes: [{ AuthType: API_KEY }]
+        DefaultPublishAuthModes: [{ AuthType: API_KEY }]
+        DefaultSubscribeAuthModes: [{ AuthType: API_KEY }]
+
+  EventApiKey:
+    Type: AWS::AppSync::ApiKey
+    Properties:
+      ApiId: !GetAtt EventApi.ApiId
+
+  RoomsNamespace:
+    Type: AWS::AppSync::ChannelNamespace
+    Properties:
+      ApiId: !GetAtt EventApi.ApiId
+      Name: rooms
+
+  # ---------- HTTP API ----------
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins: ["*"]
+        AllowMethods: [GET, POST, OPTIONS]
+        AllowHeaders: ["*"]
+
+  CreateRoomFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: rooms/create_room.handler
+      Policies: [{ DynamoDBCrudPolicy: { TableName: !Ref GameTable } }]
+      Events:
+        Api: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/rooms" } }
+
+  JoinRoomFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: rooms/join_room.handler
+      Policies: [{ DynamoDBCrudPolicy: { TableName: !Ref GameTable } }]
+      Events:
+        Api: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/rooms/{code}/join" } }
+
+  GetRoomFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: rooms/get_room.handler
+      Policies:
+        - DynamoDBReadPolicy: { TableName: !Ref GameTable }
+        - S3ReadPolicy: { BucketName: !Ref DrawingsBucket }
+      Events:
+        Api: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: GET, Path: "/rooms/{code}" } }
+
+  StartRoundFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: rooms/start_round.handler
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref GameTable }
+        - Statement:
+            - Effect: Allow
+              Action: [bedrock:InvokeModel]
+              Resource: "*"
+      Events:
+        Api: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/rooms/{code}/start" } }
+
+  UploadUrlFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: rooms/upload_url.handler
+      Policies:
+        - DynamoDBReadPolicy: { TableName: !Ref GameTable }
+        - S3WritePolicy: { BucketName: !Ref DrawingsBucket }
+      Events:
+        Api: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/rooms/{code}/upload-url" } }
+
+  SubmitFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: rooms/submit.handler
+      Environment:
+        Variables:
+          JUDGE_STATE_MACHINE_ARN: !Ref JudgeRoundStateMachine
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref GameTable }
+        - StepFunctionsExecutionPolicy: { StateMachineName: !GetAtt JudgeRoundStateMachine.Name }
+      Events:
+        Api: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/rooms/{code}/submit" } }
+
+  EndRoundFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: rooms/end_round.handler
+      Environment:
+        Variables:
+          JUDGE_STATE_MACHINE_ARN: !Ref JudgeRoundStateMachine
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref GameTable }
+        - StepFunctionsExecutionPolicy: { StateMachineName: !GetAtt JudgeRoundStateMachine.Name }
+      Events:
+        Api: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Method: POST, Path: "/rooms/{code}/end" } }
+
+  # ---------- Judging pipeline (Step Functions) ----------
+  JudgeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: ai/judge.handler
+      Timeout: 120
+      Policies:
+        - DynamoDBReadPolicy: { TableName: !Ref GameTable }
+        - S3ReadPolicy: { BucketName: !Ref DrawingsBucket }
+        - Statement:
+            - Effect: Allow
+              Action: [bedrock:InvokeModel]
+              Resource: "*"
+
+  HostVoiceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: ai/host_voice.handler
+      Timeout: 60
+      Policies:
+        - S3CrudPolicy: { BucketName: !Ref DrawingsBucket }
+        - Statement:
+            - Effect: Allow
+              Action: [polly:SynthesizeSpeech]
+              Resource: "*"
+
+  SaveResultsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: rooms/save_results.handler
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref GameTable }
+        - S3ReadPolicy: { BucketName: !Ref DrawingsBucket }
+
+  JudgeRoundStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      DefinitionUri: statemachine/judge_round.asl.json
+      DefinitionSubstitutions:
+        JudgeFunctionArn: !GetAtt JudgeFunction.Arn
+        HostVoiceFunctionArn: !GetAtt HostVoiceFunction.Arn
+        SaveResultsFunctionArn: !GetAtt SaveResultsFunction.Arn
+      Policies:
+        - LambdaInvokePolicy: { FunctionName: !Ref JudgeFunction }
+        - LambdaInvokePolicy: { FunctionName: !Ref HostVoiceFunction }
+        - LambdaInvokePolicy: { FunctionName: !Ref SaveResultsFunction }
+
+  # ---------- Frontend hosting ----------
+  # TODO person 3: S3 bucket + CloudFront distribution (OAC) for frontend/dist.
+
+Outputs:
+  ApiUrl:
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+  EventsHttpDomain:
+    Value: !GetAtt EventApi.Dns.Http
+  EventsRealtimeDomain:
+    Value: !GetAtt EventApi.Dns.Realtime
+  EventsApiKey:
+    Value: !GetAtt EventApiKey.ApiKey
+  DrawingsBucketName:
+    Value: !Ref DrawingsBucket

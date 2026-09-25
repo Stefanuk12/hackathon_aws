@@ -216,3 +216,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- Node / frontend ---
+node_modules/
+dist/
+*.local
+
+# --- AWS SAM ---
+.aws-sam/
+samconfig.local.toml
+
+# --- Editors / OS ---
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

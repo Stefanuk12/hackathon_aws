@@ -1,0 +1,2 @@
+# boto3 is already in the Lambda runtime; this pins it for local scripts.
+boto3>=1.35

@@ -1,0 +1,14 @@
+# Only person 3 deploys. Everyone else points the frontend at the deployed ApiUrl.
+version = 0.1
+
+[default.global.parameters]
+stack_name = "ai-gartic"
+
+[default.deploy.parameters]
+region = "eu-west-2"
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+confirm_changeset = false
+
+[default.sync.parameters]
+watch = true

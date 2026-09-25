@@ -1,0 +1,30 @@
+{
+  "Comment": "Judge a round: rank drawings, voice the host, save + publish results. Input: {code, round}",
+  "StartAt": "Judge",
+  "States": {
+    "Judge": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": { "FunctionName": "${JudgeFunctionArn}", "Payload.$": "$" },
+      "ResultSelector": { "results.$": "$.Payload.results" },
+      "ResultPath": "$.judge",
+      "Retry": [{ "ErrorEquals": ["States.ALL"], "IntervalSeconds": 2, "MaxAttempts": 2, "BackoffRate": 2 }],
+      "Next": "HostVoice"
+    },
+    "HostVoice": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": { "FunctionName": "${HostVoiceFunctionArn}", "Payload.$": "$" },
+      "ResultSelector": { "audioUrl.$": "$.Payload.audioUrl" },
+      "ResultPath": "$.voice",
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "ResultPath": "$.voiceError", "Next": "SaveResults" }],
+      "Next": "SaveResults"
+    },
+    "SaveResults": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": { "FunctionName": "${SaveResultsFunctionArn}", "Payload.$": "$" },
+      "End": true
+    }
+  }
+}

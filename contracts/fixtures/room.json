@@ -1,0 +1,18 @@
+{
+  "code": "WXYZ",
+  "state": "results",
+  "round": 1,
+  "prompt": "A penguin running a lemonade stand",
+  "endsAt": 1790000000000,
+  "players": [
+    { "playerId": "p_1a2b3c", "name": "Alex", "score": 9, "submitted": true },
+    { "playerId": "p_4d5e6f", "name": "Sam", "score": 6, "submitted": true },
+    { "playerId": "p_7g8h9i", "name": "Jo", "score": 2, "submitted": true }
+  ],
+  "results": [
+    { "playerId": "p_1a2b3c", "name": "Alex", "rank": 1, "score": 9, "roast": "That penguin has a better business plan than most startups.", "imageUrl": "https://placehold.co/512x512?text=Alex" },
+    { "playerId": "p_4d5e6f", "name": "Sam", "rank": 2, "score": 6, "roast": "Is that a penguin or a bowling pin with ambition?", "imageUrl": "https://placehold.co/512x512?text=Sam" },
+    { "playerId": "p_7g8h9i", "name": "Jo", "rank": 3, "score": 2, "roast": "Writing 'PENGUIN' in capitals is not drawing, Jo.", "imageUrl": "https://placehold.co/512x512?text=Jo" }
+  ],
+  "audioUrl": null
+}
