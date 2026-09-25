@@ -1,4 +1,4 @@
-import { GAME_NAME } from "./config";
+import { GAME_NAME, GAME_NAME_ACCENT } from "./config";
 import type { Player } from "./types";
 
 export const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -17,9 +17,9 @@ export function $<T extends Element = HTMLElement>(root: ParentNode, selector: s
 }
 
 export function logoHtml(cls = "") {
-  const [first, ...rest] = GAME_NAME.split(" ");
-  const last = rest.pop() ?? "";
-  return `<h1 class="logo ${cls}">${esc([first, ...rest].join(" "))} <span class="logo-ai">${esc(last)}</span></h1>`;
+  const accent = GAME_NAME.endsWith(GAME_NAME_ACCENT) ? GAME_NAME_ACCENT : "";
+  const base = GAME_NAME.slice(0, GAME_NAME.length - accent.length);
+  return `<h1 class="logo ${cls}" aria-label="${esc(GAME_NAME)}">${esc(base)}<span class="logo-ai">${esc(accent)}</span></h1>`;
 }
 
 /** Type text into an element. Stops early if the element leaves the page or is re-typed. */

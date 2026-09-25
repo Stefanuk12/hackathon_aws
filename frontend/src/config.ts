@@ -1,5 +1,7 @@
 // Change the game name / copy here; it's used on every screen.
-export const GAME_NAME = "Judged by AI";
+export const GAME_NAME = "Amacide";
+/** Trailing part of the name drawn in the AI's red glitch font in the logo. */
+export const GAME_NAME_ACCENT = "cide";
 export const TAGLINE = "Draw it. The AI decides your fate.";
 
 /** Host picks the number of rounds in the lobby (contracts/api.md: POST /start {totalRounds}). */

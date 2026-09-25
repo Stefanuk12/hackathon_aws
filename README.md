@@ -1,6 +1,6 @@
-# AI Gartic Phone — AWS North x Northumbria Hackathon
+# Amacide — AWS North x Northumbria Hackathon
 
-A party game in the style of Gartic Phone. Bedrock writes the prompt, everyone draws it on their phone, and the AI ranks the drawings against the prompt. A game-show host voice (Polly) reads out the results and a roast of each drawing.
+**Amacide** is a party game in the style of Gartic Phone. Bedrock writes the prompt, everyone draws it on their phone, and the AI ranks the drawings against the prompt. A game-show host voice (Polly) reads out the results and a roast of each drawing.
 
 **Categories:** Traditional (party game), Digital worlds, Gamification
 
